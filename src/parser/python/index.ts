@@ -1,6 +1,5 @@
 import { Program } from 'estree'
 
-import { parsePythonToEstreeAst } from '../../py-slang/src'
 import { Chapter, Context } from '../../types'
 import { FatalSyntaxError } from '../errors'
 import { AcornOptions, Parser } from '../types'
@@ -19,6 +18,7 @@ export class PythonParser implements Parser<AcornOptions> {
   ): Program | null {
     try {
       // parse the Python code
+      /*
       const chapterNum = (() => {
         switch (this.chapter) {
           case Chapter.PYTHON_1:
@@ -34,7 +34,8 @@ export class PythonParser implements Parser<AcornOptions> {
             throw new Error('Unreachable path')
         }
       })()
-      return parsePythonToEstreeAst(programStr, chapterNum, false)
+      */
+      return null
     } catch (error) {
       if (error instanceof SyntaxError) {
         error = new FatalSyntaxError(positionToSourceLocation((error as any).loc), error.toString())
