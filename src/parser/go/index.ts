@@ -3,7 +3,7 @@ import { Program } from 'estree'
 import { Chapter, Context, Variant } from '../../types'
 import { FatalSyntaxError } from '../errors'
 import { AcornOptions, Parser } from '../types'
-import { parseGoToEstreeAst } from '../../alt-langs/go/index';
+import { parseGoToEstreeAst } from '../../alt-langs/go/index'
 import { positionToSourceLocation } from '../utils'
 
 export class GoParser implements Parser<AcornOptions> {
@@ -23,8 +23,8 @@ export class GoParser implements Parser<AcornOptions> {
   ): Program | null {
     try {
       // parse the Go code
-      const chapterNum = 1;
-      return parseGoToEstreeAst(programStr, chapterNum, false);
+      const chapterNum = 1
+      return parseGoToEstreeAst(programStr, chapterNum, false)
     } catch (error) {
       if (error instanceof SyntaxError) {
         error = new FatalSyntaxError(positionToSourceLocation((error as any).loc), error.toString())
