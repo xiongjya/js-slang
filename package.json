@@ -61,7 +61,6 @@
     "autocomplete": "node ./scripts/updateAutocompleteDocs.js",
     "build_sicp_package": "./scripts/build_sicp_package.sh",
     "publish_sicp_package": "./scripts/publish_sicp_package.sh",
-    "benchmark": "jest --runInBand --testPathPattern='.*benchmark.*' --testPathIgnorePatterns='/dist/'",
     "prepare": "husky install"
   },
   "devDependencies": {
