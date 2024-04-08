@@ -1,0 +1,15 @@
+
+import createContext from '../createContext'
+import { Chapter, Variant } from '../types'
+import { parse } from './parser'
+
+const program = `
+    var wg Waitgroup
+`
+function main() {
+    const variant = Variant.CONCURRENT
+    const context = createContext(Chapter.GO_1, variant, undefined, undefined)
+    parse(program, context)
+}
+
+main()
