@@ -4,7 +4,7 @@ import { Chapter, Variant } from '../types'
 import { parse } from './parser'
 
 const program = `
-    var wg Waitgroup
+    2+3;
 `
 function main() {
     const variant = Variant.CONCURRENT
