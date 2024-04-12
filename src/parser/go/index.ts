@@ -1,15 +1,20 @@
 import { Program } from 'estree'
 
-import { Chapter, Context } from '../../types'
+import { Chapter, Context, Variant } from '../../types'
 import { FatalSyntaxError } from '../errors'
 import { AcornOptions, Parser } from '../types'
+import { parseGoToEstreeAst } from '../../alt-langs/go/index'
 import { positionToSourceLocation } from '../utils'
 
-export class PythonParser implements Parser<AcornOptions> {
+export class GoParser implements Parser<AcornOptions> {
   private chapter: Chapter
-  constructor(chapter: Chapter) {
+  private variant: Variant
+
+  constructor(chapter: Chapter, variant: Variant) {
     this.chapter = chapter
+    this.variant = variant
   }
+
   parse(
     programStr: string,
     context: Context,
@@ -17,25 +22,9 @@ export class PythonParser implements Parser<AcornOptions> {
     throwOnError?: boolean
   ): Program | null {
     try {
-      // parse the Python code
-      /*
-      const chapterNum = (() => {
-        switch (this.chapter) {
-          case Chapter.PYTHON_1:
-            return 1
-          // Future additions:
-          //   case Chapter.PYTHON_2:
-          //     return 2
-          //   case Chapter.PYTHON_3:
-          //     return 3
-          //   case Chapter.PYTHON_4:
-          //     return 4
-          default:
-            throw new Error('Unreachable path')
-        }
-      })()
-      */
-      return null
+      // parse the Go code
+      const chapterNum = 1
+      return parseGoToEstreeAst(programStr, chapterNum, false)
     } catch (error) {
       if (error instanceof SyntaxError) {
         error = new FatalSyntaxError(positionToSourceLocation((error as any).loc), error.toString())
@@ -52,6 +41,6 @@ export class PythonParser implements Parser<AcornOptions> {
   }
 
   toString(): string {
-    return `PythonParser{chapter: ${this.chapter}}`
+    return `GoParser{chapter: ${this.chapter}, variant: ${this.variant}}`
   }
 }

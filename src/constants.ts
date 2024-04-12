@@ -54,3 +54,5 @@ export const scmLanguages: Language[] = [
 ]
 
 export const pyLanguages: Language[] = [{ chapter: Chapter.PYTHON_1, variant: Variant.DEFAULT }]
+
+export const goLanguages: Language[] = [{ chapter: Chapter.GO_1, variant: Variant.CONCURRENT }]

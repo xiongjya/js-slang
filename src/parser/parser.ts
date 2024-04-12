@@ -4,6 +4,7 @@ import { Context } from '..'
 import { Chapter, Variant } from '../types'
 import { FullJSParser } from './fullJS'
 import { FullTSParser } from './fullTS'
+import { GoParser } from './go'
 import { PythonParser } from './python'
 import { SchemeParser } from './scheme'
 import { SourceParser } from './source'
@@ -33,6 +34,10 @@ export function parse<TOptions extends AcornOptions>(
       break
     case Chapter.FULL_TS:
       parser = new FullTSParser()
+      break
+    case Chapter.GO_1:
+      // TODO: switch to go parser once complete
+      parser = new GoParser(context.chapter, context.variant)
       break
     default:
       switch (context.variant) {
