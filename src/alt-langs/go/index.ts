@@ -1,6 +1,6 @@
 import { Program } from "estree";
 
-const parse = require('./parser/go');
+const parse = require('./parser/go.js');
 
 export function parseGoToEstreeAst(code: string,
     variant: number = 1,
