@@ -946,13 +946,21 @@ VariableChannelStatement
         ...declaration
       }
     }
+  / id:Identifier __ ":=" __ init:(VariableChannelExpression) EOS {
+      return {
+        type: "VariableChannelDeclaration",
+        kind: "var",
+        id: id,
+        inits: init
+      }
+    }
 
 VariableChannelSpecification
   = id:Identifier __ ChanToken __ type:(Types) __ init:(__ VariableChannelInitialiser)? {
       return {
         id: id,
         inits: extractOptional(init, 1),
-        chantype: type,
+        chantype: type[0],
       }
     }
 
@@ -964,7 +972,7 @@ VariableChannelInitialiser
 VariableChannelExpression
   = MakeToken "(" ChanToken __ type:Types ")" {
       return {
-        type: type
+        type: type[0]
       };
     }
   / VariableChannelExpressionWithSize
@@ -972,7 +980,7 @@ VariableChannelExpression
 VariableChannelExpressionWithSize
   = MakeToken "(" ChanToken __ type:Types "," __ len:NumericLiteral ")" {
       return {
-        type: type,
+        type: type[0],
         len: len
       };
     }
@@ -1002,8 +1010,7 @@ ShortVariableStatement
         type: "VariableDeclaration",
         kind: "var",
         ids: ids,
-        inits: init,
-        vartype: null
+        inits: init
       };
    }
  
