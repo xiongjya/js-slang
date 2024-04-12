@@ -425,6 +425,7 @@ IntToken        = "int"                   !IdentifierPart
 UIntToken       = "uint"                  !IdentifierPart
 ByteToken       = "byte"                  !IdentifierPart
 FloatToken      = ("float32" / "float64") !IdentifierPart
+WaitGroupToken  = "WaitGroup"             !IdentifierPart
 
 // Skipped
 

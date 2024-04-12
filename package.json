@@ -44,7 +44,7 @@
     "js-base64": "^3.7.5",
     "lodash": "^4.17.21",
     "node-getopt": "^0.3.2",
-    "pegjs": "^0.10.0",
+    "peggy": "^4.0.2",
     "source-map": "0.7.3",
     "xmlhttprequest-ts": "^1.0.1"
   },
