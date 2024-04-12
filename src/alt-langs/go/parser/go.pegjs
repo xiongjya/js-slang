@@ -161,7 +161,6 @@ Types
   / UIntToken
   / ByteToken
   / FloatToken
-  / WaitGroupToken
   
 FutureReservedWord
   = ConstToken
@@ -415,7 +414,6 @@ SwitchToken     = "switch"            !IdentifierPart
 TrueToken       = "true"              !IdentifierPart
 TypeToken       = "type"              !IdentifierPart
 VarToken        = "var"               !IdentifierPart
-WaitGroupToken  = "sync.WaitGroup"    !IdentifierPart
 
 // Types
 
@@ -425,7 +423,6 @@ IntToken        = "int"                   !IdentifierPart
 UIntToken       = "uint"                  !IdentifierPart
 ByteToken       = "byte"                  !IdentifierPart
 FloatToken      = ("float32" / "float64") !IdentifierPart
-WaitGroupToken  = "WaitGroup"             !IdentifierPart
 
 // Skipped
 
