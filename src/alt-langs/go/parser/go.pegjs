@@ -161,6 +161,7 @@ Types
   / UIntToken
   / ByteToken
   / FloatToken
+  / WaitGroupToken
   
 FutureReservedWord
   = ConstToken
@@ -389,31 +390,32 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 
 // Tokens
 
-BreakToken      = "break"      !IdentifierPart
-CaseToken       = "case"       !IdentifierPart
-ChanToken       = "chan"       !IdentifierPart
-ConstToken      = "const"      !IdentifierPart
-ContinueToken   = "continue"   !IdentifierPart
-DefaultToken    = "default"    !IdentifierPart
-ElseToken       = "else"       !IdentifierPart
-FalseToken      = "false"      !IdentifierPart
-ForToken        = "for"        !IdentifierPart
-FunctionToken   = "func"       !IdentifierPart
-GoToken         = "go"         !IdentifierPart
-GotoToken       = "goto"       !IdentifierPart
-IfToken         = "if"         !IdentifierPart
-ImportToken     = "import"     !IdentifierPart
-MakeToken       = "make"       !IdentifierPart
-NewToken        = "new"        !IdentifierPart
-NilToken        = "nil"        !IdentifierPart
-RangeToken      = "range"      !IdentifierPart
-ReturnToken     = "return"     !IdentifierPart
-SelectToken     = "select"     !IdentifierPart
-StructToken     = "struct"     !IdentifierPart
-SwitchToken     = "switch"     !IdentifierPart
-TrueToken       = "true"       !IdentifierPart
-TypeToken       = "type"       !IdentifierPart
-VarToken        = "var"        !IdentifierPart
+BreakToken      = "break"             !IdentifierPart
+CaseToken       = "case"              !IdentifierPart
+ChanToken       = "chan"              !IdentifierPart
+ConstToken      = "const"             !IdentifierPart
+ContinueToken   = "continue"          !IdentifierPart
+DefaultToken    = "default"           !IdentifierPart
+ElseToken       = "else"              !IdentifierPart
+FalseToken      = "false"             !IdentifierPart
+ForToken        = "for"               !IdentifierPart
+FunctionToken   = "func"              !IdentifierPart
+GoToken         = "go"                !IdentifierPart
+GotoToken       = "goto"              !IdentifierPart
+IfToken         = "if"                !IdentifierPart
+ImportToken     = "import"            !IdentifierPart
+MakeToken       = "make"              !IdentifierPart
+NewToken        = "new"               !IdentifierPart
+NilToken        = "nil"               !IdentifierPart
+RangeToken      = "range"             !IdentifierPart
+ReturnToken     = "return"            !IdentifierPart
+SelectToken     = "select"            !IdentifierPart
+StructToken     = "struct"            !IdentifierPart
+SwitchToken     = "switch"            !IdentifierPart
+TrueToken       = "true"              !IdentifierPart
+TypeToken       = "type"              !IdentifierPart
+VarToken        = "var"               !IdentifierPart
+WaitGroupToken  = "sync.WaitGroup"    !IdentifierPart
 
 // Types
 
@@ -870,7 +872,7 @@ ChannelReceiveExpression
       return {
         type: "ChannelReceiveExpression",
         right: right
-      }
+      };
     }
 
 AssignmentOperator
@@ -993,6 +995,14 @@ ChannelExpressionWithSize
       };
     }
 
+FunctionDeclarationTypeSpecification
+  = ids:Identifier __ type:(Types) {
+	  return {
+        ids: ids,
+        vartype: type[0]
+      }
+    }
+
 DeclarationSpecification
   = ids:Identifier __ init:(Initialiser) {
 	  return {
@@ -1061,7 +1071,7 @@ ChannelSendStatement
         operator: "<-",
         left: left,
         right: right
-      }
+      };
     }
 
 ExpressionStatement
@@ -1192,7 +1202,7 @@ FunctionExpression
     }
 
 FormalParameterList
-  = head:DeclarationTypeSpecification tail:(__ "," __ DeclarationTypeSpecification)* {
+  = head:FunctionDeclarationTypeSpecification tail:(__ "," __ FunctionDeclarationTypeSpecification)* {
       return buildList(head, tail, 3);
     }
 
