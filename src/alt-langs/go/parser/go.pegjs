@@ -838,6 +838,7 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
+  / ChannelReceiveExpression
 
 AssignmentExpressionNoIn
   = left:LeftHandSideExpression __
@@ -864,6 +865,14 @@ AssignmentExpressionNoIn
     }
   / ConditionalExpressionNoIn
 
+ChannelReceiveExpression
+  = "<-" __ right:Identifier {
+      return {
+        type: "ChannelReceiveExpression",
+        right: right
+      }
+    }
+
 AssignmentOperator
   = "**="
   / "*="
@@ -878,18 +887,16 @@ AssignmentOperator
   / "^="
   / "|="
 
+// Expression
+
 Expression
-  = head:AssignmentExpression tail:(__ "," __ AssignmentExpression)* {
-      return tail.length > 0
-        ? { type: "SequenceExpression", expressions: buildList(head, tail, 3) }
-        : head;
+  = head:AssignmentExpression {
+      return head;
     }
 
 ExpressionNoIn
-  = head:AssignmentExpressionNoIn tail:(__ "," __ AssignmentExpressionNoIn)* {
-      return tail.length > 0
-        ? { type: "SequenceExpression", expressions: buildList(head, tail, 3) }
-        : head;
+  = head:AssignmentExpressionNoIn {
+      return head;
     }
 
 // ----- A.4 Statements -----
@@ -899,7 +906,9 @@ Statement
   / ConstantStatement
   / VariableStatement
   / ShortVariableStatement
+  / VariableChannelStatement
   / EmptyStatement
+  / ChannelSendStatement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
@@ -907,7 +916,6 @@ Statement
   / BreakStatement
   / ReturnStatement
   / LabelledStatement
-  / VariableChannelStatement
 
 Block
   = "{" __ body:(StatementList __)? "}" {
@@ -939,14 +947,14 @@ VariableStatement
     }
 
 VariableChannelStatement
-  = VarToken __ declaration:VariableChannelSpecification EOS {
+  = VarToken __ declarations:ChannelSpecification EOS {
       return {
         type: "VariableChannelDeclaration",
         kind: "var",
-        ...declaration
+        ...declarations
       }
     }
-  / id:Identifier __ ":=" __ init:(VariableChannelExpression) EOS {
+  / id:Identifier __ ":=" __ init:(ChannelExpression) EOS {
       return {
         type: "VariableChannelDeclaration",
         kind: "var",
@@ -955,8 +963,8 @@ VariableChannelStatement
       }
     }
 
-VariableChannelSpecification
-  = id:Identifier __ ChanToken __ type:(Types) __ init:(__ VariableChannelInitialiser)? {
+ChannelSpecification
+  = id:Identifier __ ChanToken __ type:(Types) __ init:(__ ChannelInitialiser)? {
       return {
         id: id,
         inits: extractOptional(init, 1),
@@ -964,20 +972,20 @@ VariableChannelSpecification
       }
     }
 
-VariableChannelInitialiser
-  = "=" !"=" __ expression:VariableChannelExpression {
+ChannelInitialiser
+  = "=" !"=" __ expression:ChannelExpression {
       return expression; 
     }
 
-VariableChannelExpression
+ChannelExpression
   = MakeToken "(" ChanToken __ type:Types ")" {
       return {
         type: type[0]
       };
     }
-  / VariableChannelExpressionWithSize
+  / ChannelExpressionWithSize
 
-VariableChannelExpressionWithSize
+ChannelExpressionWithSize
   = MakeToken "(" ChanToken __ type:Types "," __ len:NumericLiteral ")" {
       return {
         type: type[0],
@@ -985,17 +993,8 @@ VariableChannelExpressionWithSize
       };
     }
 
-DeclarationTypeSpecification
-  = ids:IdentifierList __ type:(Types) init:(__ InitialiserList)? {
-	  return {
-        ids: ids,
-        inits: extractOptional(init, 1),
-        vartype: type[0]
-      }
-    }
-
 DeclarationSpecification
-  = ids:IdentifierList __ init:(InitialiserList) {
+  = ids:Identifier __ init:(Initialiser) {
 	  return {
         ids: ids,
         inits: init,
@@ -1004,8 +1003,17 @@ DeclarationSpecification
     }
     / DeclarationTypeSpecification
 
+DeclarationTypeSpecification
+  = ids:Identifier __ type:(Types) init:(__ Initialiser)? {
+	  return {
+        ids: ids,
+        inits: extractOptional(init, 1),
+        vartype: type[0]
+      }
+    }
+
 ShortVariableStatement
-  = ids:IdentifierList __ ":=" __ init:(ExpressionList) EOS {
+  = ids:Identifier __ ":=" __ init:(Expression) EOS {
       return {
         type: "VariableDeclaration",
         kind: "var",
@@ -1013,27 +1021,6 @@ ShortVariableStatement
         inits: init
       };
    }
- 
-IdentifierList
-  = head:Identifier tail:(__ "," __ Identifier) * {
-      return buildList(head, tail, 3);
-    }
-
-InitialiserList
-  = "=" !"=" expr:ExpressionList {
-   return expr;
-  }
-  
-ExpressionList
-  = __ head:AssignmentExpression tail:(__ "," __ AssignmentExpression) * {
-      return buildList(head, tail, 3);
-    }
-
-
-VariableDeclarationList
-  = head:VariableDeclaration tail:(__ "," __ VariableDeclaration)* {
-      return buildList(head, tail, 3);
-    }
 
 VariableDeclarationListNoIn
   = head:VariableDeclarationNoIn tail:(__ "," __ VariableDeclarationNoIn)* {
@@ -1066,6 +1053,16 @@ InitialiserNoIn
 
 EmptyStatement
   = ";" { return { type: "EmptyStatement" }; }
+
+ChannelSendStatement
+  = left:Identifier __ "<-" __ right:AssignmentExpression {
+      return {
+        type: "ChannelSendStatement",
+        operator: "<-",
+        left: left,
+        right: right
+      }
+    }
 
 ExpressionStatement
   = !("{" / FunctionToken) expression:Expression EOS {
