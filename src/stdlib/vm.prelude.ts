@@ -687,7 +687,8 @@ export const VARARGS_NUM_ARGS = -1
 export const INTERNAL_FUNCTIONS: [string, OpCodes, number, boolean][] = [
   ['test_and_set', OpCodes.TEST_AND_SET, 1, true],
   ['clear', OpCodes.CLEAR, 1, false],
-  ['concurrent_execute', OpCodes.EXECUTE, VARARGS_NUM_ARGS, false]
+  ['concurrent_execute', OpCodes.EXECUTE, VARARGS_NUM_ARGS, false],
+  ['go', OpCodes.EXECUTE, 1, false]
 ]
 
 // for each function, replace a specified opcode with another opcode

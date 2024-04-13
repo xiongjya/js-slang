@@ -554,8 +554,12 @@ NewExpression
 GoRoutineExpression
   = GoToken __ func:CallExpression {
     return {
-      ...func,
-      type: "GoRoutine"
+      type: "CallExpression",
+      callee: {
+        type: "Identifier",
+        name: "go"
+      },
+      arguments: [func]
     }
   }
 
@@ -906,7 +910,7 @@ Statement
   / ConstantStatement
   / VariableStatement
   / ShortVariableStatement
-  / VariableChannelStatement
+  / ChannelStatement
   / EmptyStatement
   / ChannelSendStatement
   / ExpressionStatement
@@ -931,7 +935,7 @@ StatementList
 ConstantStatement
   = ConstToken __ declarations:DeclarationSpecification EOS {
       return {
-        type: "ConstDeclaration",
+        type: "VariableDeclaration",
         kind: "const",
         ...declarations
       };
@@ -946,17 +950,17 @@ VariableStatement
       };
     }
 
-VariableChannelStatement
+ChannelStatement
   = VarToken __ declarations:ChannelSpecification EOS {
       return {
-        type: "VariableChannelDeclaration",
+        type: "ChannelDeclaration",
         kind: "var",
         ...declarations
       }
     }
   / id:Identifier __ ":=" __ init:(ChannelExpression) EOS {
       return {
-        type: "VariableChannelDeclaration",
+        type: "ChannelDeclaration",
         kind: "var",
         id: id,
         inits: init
@@ -968,7 +972,7 @@ ChannelSpecification
       return {
         id: id,
         inits: extractOptional(init, 1),
-        chantype: type[0],
+        type: `chan ${type[0]}`,
       }
     }
 
