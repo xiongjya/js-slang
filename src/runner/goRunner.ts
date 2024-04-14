@@ -436,6 +436,8 @@ const compile_time_environment_position = (env: any, x: any) => {
 }
 
 const value_index = (frame: any, x: any) => {
+  if (!frame) return;
+
   for (let i = 0; i < frame.length; i++) {
     if (frame[i] === x) return i
   }
@@ -518,12 +520,17 @@ const global_compile_environment = [global_compile_frame]
 
 // scanning out the declarations from (possibly nested)
 // sequences of statements, ignoring blocks
-const scan = (comp: any) =>
-  comp.tag === 'seq'
-    ? comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-    : ['let', 'const', 'fun'].includes(comp.tag)
-    ? [comp.sym]
-    : []
+function scan(stmts: any[]) {
+  let res: string[] = [];
+  for (const comp of stmts) {
+      if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
+          res = res.concat(comp.ids.map((x: any) => x.name));
+      } else if (comp.type === 'FunctionDeclaration') {
+          res.push(comp.id.name)
+      }
+  }
+  return res;
+}
 
 const compile_sequence = (seq: any, ce: any) => {
   if (seq.length === 0) return (instrs[wc++] = { tag: 'LDC', val: undefined })
@@ -540,13 +547,10 @@ let wc: number
 let instrs: any[]
 
 const compile_comp = {
-  ExpressionStatement: (comp: any, ce: any): void => {
-    compile(comp.expression, ce)
-  },
   Literal: (comp: any, ce: any) => {
     instrs[wc++] = { tag: 'LDC', val: comp.value }
   },
-  nam:
+  Identifier:
     // store precomputed position information in LD instruction
     (comp: any, ce: any) => {
       instrs[wc++] = {
@@ -558,6 +562,9 @@ const compile_comp = {
   unop: (comp: any, ce: any) => {
     compile(comp.frst, ce)
     instrs[wc++] = { tag: 'UNOP', sym: comp.operator }
+  },
+  ExpressionStatement: (comp: any, ce: any): void => {
+    compile(comp.expression, ce)
   },
   BinaryExpression: (comp: any, ce: any) => {
     compile(comp.left, ce)
@@ -605,12 +612,15 @@ const compile_comp = {
     jump_on_false_instruction.addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
-  app: (comp: any, ce: any) => {
-    compile(comp.fun, ce)
-    for (let arg of comp.args) {
+  CallExpression: (comp: any, ce: any) => {
+    compile({
+      type: 'Identifier',
+      sym: comp.callee.name,
+    }, ce)
+    for (let arg of comp.arguments) {
       compile(arg, ce)
     }
-    instrs[wc++] = { tag: 'CALL', arity: comp.args.length }
+    instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
   },
   assmt:
     // store precomputed position info in ASSIGN instruction
@@ -633,58 +643,66 @@ const compile_comp = {
     goto_instruction.addr = wc
   },
   seq: (comp: any, ce: any) => compile_sequence(comp.stmts, ce),
-  blk: (comp: any, ce: any) => {
+  BlockStatement: (comp: any, ce: any) => {
     const locals = scan(comp.body)
     instrs[wc++] = { tag: 'ENTER_SCOPE', num: locals.length }
-    compile(
+    compile_sequence(
       comp.body,
       // extend compile-time environment
       compile_time_environment_extend(locals, ce)
     )
     instrs[wc++] = { tag: 'EXIT_SCOPE' }
   },
-  let: (comp: any, ce: any) => {
-    compile(comp.expr, ce)
-    instrs[wc++] = {
-      tag: 'ASSIGN',
-      pos: compile_time_environment_position(ce, comp.sym)
+  VariableDeclaration: (comp: any, ce: any) => {
+    if (!comp.inits) return;
+
+    for (let i = 0; i < comp.inits.length; i++) {
+      compile(comp.inits[i], ce);
+      instrs[wc++] = {
+        tag: 'ASSIGN',
+        pos: compile_time_environment_position(ce, comp.ids[i].name)
+      };
     }
   },
-  const: (comp: any, ce: any) => {
-    compile(comp.expr, ce)
-    instrs[wc++] = {
-      tag: 'ASSIGN',
-      pos: compile_time_environment_position(ce, comp.sym)
+  ConstDeclaration: (comp: any, ce: any) => {
+    for (let i = 0; i < comp.inits.length; i++) {
+      compile(comp.inits[i], ce);
+      instrs[wc++] = {
+        tag: 'ASSIGN',
+        pos: compile_time_environment_position(ce, comp.ids[i].name)
+      };
     }
   },
-  ret: (comp: any, ce: any) => {
-    compile(comp.expr, ce)
-    if (comp.expr.tag === 'app') {
+  ReturnStatement: (comp: any, ce: any) => {
+    compile(comp.argument, ce)
+    if (comp.argument.tag === 'CallExpression') {
       // tail call: turn CALL into TAILCALL
       instrs[wc - 1].tag = 'TAIL_CALL'
     } else {
       instrs[wc++] = { tag: 'RESET' }
     }
   },
-  fun: (comp: any, ce: any) => {
+  FunctionDeclaration: (comp: any, ce: any) => {
     compile(
       {
-        tag: 'const',
-        sym: comp.sym,
-        expr: { tag: 'lam', prms: comp.prms, body: comp.body }
+        type: 'ConstDeclaration',
+        ids: [{ type: 'Identifier', name: comp.id.name }],
+        inits: [{ type: 'lam', prms: comp.params, body: comp.body }]
       },
       ce
     )
-  }
+  },
+  EmptyStatement: (comp: any, ce: any) => {}
 }
 
 // compile component into instruction array instrs,
 // starting at wc (write counter)
 const compile = (comp: any, ce: any) => {
   try {
+    console.log(comp.type)
     compile_comp[comp.type](comp, ce)
-  } catch {
-    console.log(`can't find ${comp.type}`)
+  } catch (e) {
+    console.log(e)
   }
   instrs[wc] = { tag: 'DONE' }
 }
