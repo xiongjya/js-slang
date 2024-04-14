@@ -3,7 +3,8 @@ import { Chapter, Variant } from '../types'
 import { parse } from './parser'
 
 const program = `
-  2+3;
+  2 + 3;
+  go f();
 `
 function main() {
   const variant = Variant.CONCURRENT

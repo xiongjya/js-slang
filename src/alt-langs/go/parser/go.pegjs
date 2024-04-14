@@ -554,7 +554,7 @@ NewExpression
 GoRoutineExpression
   = GoToken __ func:CallExpression {
     return {
-      type: "CallExpression",
+      type: "GoRoutineExpression",
       callee: {
         type: "Identifier",
         name: "go"
