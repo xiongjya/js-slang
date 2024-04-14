@@ -436,7 +436,7 @@ const compile_time_environment_position = (env: any, x: any) => {
 }
 
 const value_index = (frame: any, x: any) => {
-  if (!frame) return;
+  if (!frame) return
 
   for (let i = 0; i < frame.length; i++) {
     if (frame[i] === x) return i
@@ -521,15 +521,15 @@ const global_compile_environment = [global_compile_frame]
 // scanning out the declarations from (possibly nested)
 // sequences of statements, ignoring blocks
 function scan(stmts: any[]) {
-  let res: string[] = [];
+  let res: string[] = []
   for (const comp of stmts) {
-      if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
-          res = res.concat(comp.ids.map((x: any) => x.name));
-      } else if (comp.type === 'FunctionDeclaration') {
-          res.push(comp.id.name)
-      }
+    if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
+      res = res.concat(comp.ids.map((x: any) => x.name))
+    } else if (comp.type === 'FunctionDeclaration') {
+      res.push(comp.id.name)
+    }
   }
-  return res;
+  return res
 }
 
 const compile_sequence = (seq: any, ce: any) => {
@@ -555,8 +555,8 @@ const compile_comp = {
     (comp: any, ce: any) => {
       instrs[wc++] = {
         tag: 'LD',
-        sym: comp.sym,
-        pos: compile_time_environment_position(ce, comp.sym)
+        sym: comp.name,
+        pos: compile_time_environment_position(ce, comp.name)
       }
     },
   unop: (comp: any, ce: any) => {
@@ -589,16 +589,16 @@ const compile_comp = {
       ce
     )
   },
-  cond: (comp: any, ce: any) => {
-    compile(comp.pred, ce)
+  IfStatement: (comp: any, ce: any) => {
+    compile(comp.test, ce)
     const jump_on_false_instruction: any = { tag: 'JOF' }
     instrs[wc++] = jump_on_false_instruction
-    compile(comp.cons, ce)
+    compile(comp.consequent, ce)
     const goto_instruction: any = { tag: 'GOTO' }
     instrs[wc++] = goto_instruction
     const alternative_address = wc
     jump_on_false_instruction.addr = alternative_address
-    compile(comp.alt, ce)
+    compile(comp.alternate, ce)
     goto_instruction.addr = wc
   },
   while: (comp: any, ce: any) => {
@@ -613,10 +613,13 @@ const compile_comp = {
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
   CallExpression: (comp: any, ce: any) => {
-    compile({
-      type: 'Identifier',
-      sym: comp.callee.name,
-    }, ce)
+    compile(
+      {
+        type: 'Identifier',
+        name: comp.callee.name
+      },
+      ce
+    )
     for (let arg of comp.arguments) {
       compile(arg, ce)
     }
@@ -654,23 +657,23 @@ const compile_comp = {
     instrs[wc++] = { tag: 'EXIT_SCOPE' }
   },
   VariableDeclaration: (comp: any, ce: any) => {
-    if (!comp.inits) return;
+    if (!comp.inits) return
 
     for (let i = 0; i < comp.inits.length; i++) {
-      compile(comp.inits[i], ce);
+      compile(comp.inits[i], ce)
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.ids[i].name)
-      };
+      }
     }
   },
   ConstDeclaration: (comp: any, ce: any) => {
     for (let i = 0; i < comp.inits.length; i++) {
-      compile(comp.inits[i], ce);
+      compile(comp.inits[i], ce)
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.ids[i].name)
-      };
+      }
     }
   },
   ReturnStatement: (comp: any, ce: any) => {
@@ -867,7 +870,7 @@ function run() {
 export async function goRunner(program: any): Promise<Result> {
   compile_program(program)
   const result: any = run()
-  console.log(result)
+  console.log('result: ', result)
 
   return Promise.resolve({ value: result } as Finished)
 }

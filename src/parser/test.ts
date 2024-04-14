@@ -4,10 +4,14 @@ import { Chapter, Variant } from '../types'
 import { parse } from './parser'
 
 const program = `
+  const x = 20;
   func main() {
-    const a = 2;
-    var b = 3;
-    return 4;
+    const x = 5;
+    if (x < 10) {
+      return 1;
+    } else {
+      return 2;
+    }
   }
 
   main();
