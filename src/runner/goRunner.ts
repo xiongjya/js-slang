@@ -561,7 +561,7 @@ const compile_comp = {
     },
   unop: (comp: any, ce: any) => {
     compile(comp.frst, ce)
-    instrs[wc++] = { tag: 'UNOP', sym: comp.operator }
+    instrs[wc++] = { tag: 'UNOP', sym: comp.sym }
   },
   ExpressionStatement: (comp: any, ce: any): void => {
     compile(comp.expression, ce)
@@ -571,20 +571,20 @@ const compile_comp = {
     compile(comp.right, ce)
     instrs[wc++] = { tag: 'BINOP', sym: comp.operator }
   },
-  log: (comp: any, ce: any) => {
+  LogicalExpression: (comp: any, ce: any) => {
     compile(
-      comp.sym == '&&'
+      comp.operator == '||'
         ? {
-            tag: 'cond_expr',
-            pred: comp.frst,
-            cons: { tag: 'lit', val: true },
-            alt: comp.scnd
+            type: 'IfStatement',
+            test: comp.left,
+            consequent: { type: 'Literal', value: true },
+            alternate: comp.right
           }
         : {
-            tag: 'cond_expr',
-            pred: comp.frst,
-            cons: comp.scnd,
-            alt: { tag: 'lit', val: false }
+            type: 'IfStatement',
+            test: comp.left,
+            consequent: comp.right,
+            alternate: { type: 'Literal', value: false }
           },
       ce
     )
@@ -625,13 +625,13 @@ const compile_comp = {
     }
     instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
   },
-  assmt:
+  AssignmentExpression:
     // store precomputed position info in ASSIGN instruction
     (comp: any, ce: any) => {
-      compile(comp.expr, ce)
+      compile(comp.right, ce)
       instrs[wc++] = {
         tag: 'ASSIGN',
-        pos: compile_time_environment_position(ce, comp.sym)
+        pos: compile_time_environment_position(ce, comp.left.name)
       }
     },
   lam: (comp: any, ce: any) => {
@@ -743,7 +743,7 @@ const apply_binop = (op: any, v2: any, v1: any) =>
   JS_value_to_address(binop_microcode[op](address_to_JS_value(v1), address_to_JS_value(v2)))
 
 const unop_microcode = {
-  '-unary': (x: number) => -x,
+  '-': (x: number) => -x,
   '!': (x: any) => !x
 }
 

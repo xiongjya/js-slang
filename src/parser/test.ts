@@ -4,17 +4,9 @@ import { Chapter, Variant } from '../types'
 import { parse } from './parser'
 
 const program = `
-  const x = 20;
-  func main() {
-    const x = 5;
-    if (x < 10) {
-      return 1;
-    } else {
-      return 2;
-    }
-  }
-
-  main();
+  var x int = 1;
+  x = x + 1;
+  x;
 `
 function main() {
   const variant = Variant.CONCURRENT
