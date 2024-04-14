@@ -4,8 +4,11 @@ import { Chapter, Variant } from '../types'
 import { parse } from './parser'
 
 const program = `
-  var x int = 1;
-  x = x + 1;
+  var x = 1;
+  for var i = 0; i < 5; i = i + 1 {
+    x = x * 2;
+    x = x * 10;
+  }
   x;
 `
 function main() {

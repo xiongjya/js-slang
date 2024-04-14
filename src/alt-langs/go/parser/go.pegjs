@@ -1055,11 +1055,9 @@ IfStatement
 
 IterationStatement
   = ForToken __
-    "(" __
     init:(ExpressionNoIn __)? ";" __
     test:(Expression __)? ";" __
     update:(Expression __)?
-    ")" __
     body:Statement
     {
       return {
@@ -1071,11 +1069,9 @@ IterationStatement
       };
     }
   / ForToken __
-    "(" __
     VarToken __ declarations:VariableDeclarationListNoIn __ ";" __
     test:(Expression __)? ";" __
     update:(Expression __)?
-    ")" __
     body:Statement
     {
       return {

@@ -601,6 +601,22 @@ const compile_comp = {
     compile(comp.alternate, ce)
     goto_instruction.addr = wc
   },
+  ForStatement: (comp: any, ce: any) => {
+    compile(comp.init, ce)
+    const loop_start = wc
+    compile(comp.test, ce)
+    const jump_on_false_instruction: any = { tag: 'JOF' }
+    instrs[wc++] = jump_on_false_instruction
+    compile({
+      type: 'seq',
+      stmts: comp.body,
+    }, ce)
+    compile(comp.update, ce)
+    instrs[wc++] = { tag: 'POP' }
+    instrs[wc++] = { tag: 'GOTO', addr: loop_start }
+    jump_on_false_instruction.addr = wc
+    instrs[wc++] = { tag: 'LDC', val: undefined }
+  },
   while: (comp: any, ce: any) => {
     const loop_start = wc
     compile(comp.pred, ce)
