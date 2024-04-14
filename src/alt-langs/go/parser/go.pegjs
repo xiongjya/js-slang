@@ -161,6 +161,7 @@ Types
   / UIntToken
   / ByteToken
   / FloatToken
+  / WaitGroupToken
   
 FutureReservedWord
   = ConstToken
