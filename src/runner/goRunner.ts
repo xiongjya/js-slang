@@ -1,7 +1,7 @@
 import Heap from '../heap'
 import { Finished, Result } from '../types'
 
-const heap = new Heap
+const heap = new Heap()
 
 // helper functions
 const peek = (array: any[], address: any) => array.slice(-1 - address)[0]
@@ -21,12 +21,10 @@ const error = (...x: any) => new Error(x)
 
 const get_time = () => Date.now()
 
-
 const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
   body: [program]
 })
-
 
 /* ************************
  * compile-time environment
@@ -139,9 +137,9 @@ function scan(comp: any) {
 }
 
 const compile_sequence = (seq: any, ce: any) => {
-  if (seq.length === 0)  {
+  if (seq.length === 0) {
     instrs[wc++] = { tag: 'LDC', val: undefined }
-    return;
+    return
   }
   let first = true
   for (let comp of seq) {
@@ -358,7 +356,9 @@ const binop_microcode = {
 
 // v2 is popped before v1
 const apply_binop = (op: any, v2: any, v1: any) =>
-  heap.JS_value_to_address(binop_microcode[op](heap.address_to_JS_value(v1), heap.address_to_JS_value(v2)))
+  heap.JS_value_to_address(
+    binop_microcode[op](heap.address_to_JS_value(v1), heap.address_to_JS_value(v2))
+  )
 
 const unop_microcode = {
   '-': (x: number) => -x,
@@ -467,9 +467,7 @@ const microcode = {
       E = heap.heap_get_Callframe_environment(top_frame)
     }
   },
-  GO_START: (instr: any) => {
-
-  },
+  GO_START: (instr: any) => {}
 }
 
 function run() {
