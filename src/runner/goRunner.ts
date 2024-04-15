@@ -30,6 +30,11 @@ const is_string = (x: any) => typeof x === 'string'
 
 const is_undefined = (x: any) => x === undefined
 
+const wrap_in_block = (program: any) => ({
+  type: 'BlockStatement',
+  body: program,
+});
+
 /* *************************
  * HEAP
  * *************************/
@@ -431,13 +436,12 @@ const JS_value_to_address: any = (x: any) =>
 // of a given symbol x
 const compile_time_environment_position = (env: any, x: any) => {
   let frame_index = env.length
-  while (value_index(env[--frame_index], x) === -1) {}
+  while ((frame_index > 0) && (value_index(env[--frame_index], x) === -1)) {}
+  console.log([frame_index, value_index(env[frame_index], x)])
   return [frame_index, value_index(env[frame_index], x)]
 }
 
 const value_index = (frame: any, x: any) => {
-  if (!frame) return
-
   for (let i = 0; i < frame.length; i++) {
     if (frame[i] === x) return i
   }
@@ -520,16 +524,14 @@ const global_compile_environment = [global_compile_frame]
 
 // scanning out the declarations from (possibly nested)
 // sequences of statements, ignoring blocks
-function scan(stmts: any[]) {
-  let res: string[] = []
-  for (const comp of stmts) {
-    if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
-      res = res.concat(comp.ids.map((x: any) => x.name))
-    } else if (comp.type === 'FunctionDeclaration') {
-      res.push(comp.id.name)
-    }
+function scan(comp: any) {
+  if (comp.type === 'seq') {
+    return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
+  } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
+    return comp.ids.map((x: any) => x.name)
+  } else if (comp.type === 'FunctionDeclaration') {
+    return comp.id.name
   }
-  return res
 }
 
 const compile_sequence = (seq: any, ce: any) => {
@@ -607,22 +609,14 @@ const compile_comp = {
     compile(comp.test, ce)
     const jump_on_false_instruction: any = { tag: 'JOF' }
     instrs[wc++] = jump_on_false_instruction
-    compile({
-      type: 'seq',
-      stmts: comp.body,
-    }, ce)
+    compile(
+      {
+        type: 'seq',
+        stmts: comp.body
+      },
+      ce
+    )
     compile(comp.update, ce)
-    instrs[wc++] = { tag: 'POP' }
-    instrs[wc++] = { tag: 'GOTO', addr: loop_start }
-    jump_on_false_instruction.addr = wc
-    instrs[wc++] = { tag: 'LDC', val: undefined }
-  },
-  while: (comp: any, ce: any) => {
-    const loop_start = wc
-    compile(comp.pred, ce)
-    const jump_on_false_instruction: any = { tag: 'JOF' }
-    instrs[wc++] = jump_on_false_instruction
-    compile(comp.body, ce)
     instrs[wc++] = { tag: 'POP' }
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
     jump_on_false_instruction.addr = wc
@@ -665,7 +659,7 @@ const compile_comp = {
   BlockStatement: (comp: any, ce: any) => {
     const locals = scan(comp.body)
     instrs[wc++] = { tag: 'ENTER_SCOPE', num: locals.length }
-    compile_sequence(
+    compile(
       comp.body,
       // extend compile-time environment
       compile_time_environment_extend(locals, ce)
@@ -723,7 +717,6 @@ const compile = (comp: any, ce: any) => {
   } catch (e) {
     console.log(e)
   }
-  instrs[wc] = { tag: 'DONE' }
 }
 
 // compile program into instruction array instrs,
@@ -884,7 +877,7 @@ function run() {
 }
 
 export async function goRunner(program: any): Promise<Result> {
-  compile_program(program)
+  compile_program(wrap_in_block(program))
   const result: any = run()
   console.log('result: ', result)
 
