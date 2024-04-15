@@ -32,8 +32,8 @@ const is_undefined = (x: any) => x === undefined
 
 const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
-  body: program,
-});
+  body: [program]
+})
 
 /* *************************
  * HEAP
@@ -436,8 +436,7 @@ const JS_value_to_address: any = (x: any) =>
 // of a given symbol x
 const compile_time_environment_position = (env: any, x: any) => {
   let frame_index = env.length
-  while ((frame_index > 0) && (value_index(env[--frame_index], x) === -1)) {}
-  console.log([frame_index, value_index(env[frame_index], x)])
+  while (value_index(env[--frame_index], x) === -1) {}
   return [frame_index, value_index(env[frame_index], x)]
 }
 
@@ -530,8 +529,9 @@ function scan(comp: any) {
   } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
-    return comp.id.name
+    return [comp.id.name]
   }
+  return []
 }
 
 const compile_sequence = (seq: any, ce: any) => {
@@ -604,18 +604,11 @@ const compile_comp = {
     goto_instruction.addr = wc
   },
   ForStatement: (comp: any, ce: any) => {
-    compile(comp.init, ce)
     const loop_start = wc
     compile(comp.test, ce)
     const jump_on_false_instruction: any = { tag: 'JOF' }
     instrs[wc++] = jump_on_false_instruction
-    compile(
-      {
-        type: 'seq',
-        stmts: comp.body
-      },
-      ce
-    )
+    compile(comp.body, ce)
     compile(comp.update, ce)
     instrs[wc++] = { tag: 'POP' }
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
@@ -657,10 +650,14 @@ const compile_comp = {
   },
   seq: (comp: any, ce: any) => compile_sequence(comp.stmts, ce),
   BlockStatement: (comp: any, ce: any) => {
-    const locals = scan(comp.body)
+    const seq_comp_body = {
+      type: 'seq',
+      stmts: comp.body
+    }
+    const locals = scan(seq_comp_body)
     instrs[wc++] = { tag: 'ENTER_SCOPE', num: locals.length }
     compile(
-      comp.body,
+      seq_comp_body,
       // extend compile-time environment
       compile_time_environment_extend(locals, ce)
     )
@@ -712,7 +709,6 @@ const compile_comp = {
 // starting at wc (write counter)
 const compile = (comp: any, ce: any) => {
   try {
-    console.log(comp.type)
     compile_comp[comp.type](comp, ce)
   } catch (e) {
     console.log(e)

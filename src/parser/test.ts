@@ -5,8 +5,11 @@ import { parse } from './parser'
 
 const program = `
 var x = 1;
+const y = 10;
 for var i = 0; i < 5; i = i + 1 {
+  const y = 5;
   x = x * 2;
+  x = x + y;
 }
 x;
 `
