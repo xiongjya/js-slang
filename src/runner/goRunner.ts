@@ -1,7 +1,18 @@
 import Heap from '../heap'
+import { Scheduler, ThreadId } from '../scheduler'
 import { Finished, Result } from '../types'
 
+type Thread = [
+  any[], // OS
+  number, // PC
+  number, // ENV
+  any[], // RTS
+]
+
 const heap = new Heap()
+let scheduler = new Scheduler()
+const threads: Map<ThreadId, Thread> = new Map()
+let curr_thread: ThreadId = -1
 
 // helper functions
 const peek = (array: any[], address: any) => array.slice(-1 - address)[0]
@@ -234,10 +245,21 @@ const compile_comp = {
     instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
   },
   GoExpression: (comp: any, ce: any) => {
-    instrs[wc++] = { tag: 'GO_START' }
-    comp.type = 'CALL'
-    compile(comp, ce)
+    compile(
+      {
+        type: 'Identifier',
+        name: comp.callee.name
+      },
+      ce
+    )
+    for (let arg of comp.arguments) {
+      compile(arg, ce)
+    }
+    const start_wc = wc
+    instrs[wc++] = { tag: 'GO_START', end_pc: -1 }
+    instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
     instrs[wc++] = { tag: 'GO_END' }
+    instrs[start_wc].end_pc = wc;
   },
   AssignmentExpression:
     // store precomputed position info in ASSIGN instruction
@@ -388,7 +410,7 @@ for (let i = 0; i < primitive_values.length; i++) {
   }
 }
 
-const global_environment = heap.heap_Environment_extend(frame_address, heap.heap_empty_Environment)
+const global_environment: number = heap.heap_Environment_extend(frame_address, heap.heap_empty_Environment)
 
 /* *******
  * machine
@@ -398,8 +420,9 @@ const global_environment = heap.heap_Environment_extend(frame_address, heap.heap
 let OS: any[] // JS array (stack) of words (Addresses,
 //        word-encoded literals, numbers)
 let PC: number // JS number
-let E: any // heap Address
+let E: number // heap Address
 let RTS: any // JS array (stack) of Addresses
+let TO: number // timeout counter
 
 const microcode = {
   LDC: (instr: any) => push(OS, heap.JS_value_to_address(instr.val)),
@@ -467,19 +490,79 @@ const microcode = {
       E = heap.heap_get_Callframe_environment(top_frame)
     }
   },
-  GO_START: (instr: any) => {}
+  GO_START: (instr: any) => {
+    PC++;
+    new_thread();
+    PC = instr.end_pc
+  },
+  GO_END: (instr: any) => {
+    delete_thread()
+  }
+}
+
+function new_thread() {
+  const newId = scheduler.newThread()
+  threads.set(newId, [[], PC, global_environment, []])
+}
+
+function delete_thread() {
+  // Clear state from threads map
+  threads.delete(curr_thread)
+
+  // Delete thread from scheduler
+  scheduler.deleteCurrentThread(curr_thread)
+  curr_thread = -1
+}
+
+function next_thread() {
+  ;[curr_thread, TO] = scheduler.selectNextThread()!
+
+  // Load thread state
+  ;[OS, PC, E, RTS] = threads.get(curr_thread)!
+}
+
+function pause_thread() {
+  // Save state to threads map
+  threads.set(curr_thread, [OS, PC, E, RTS])
+
+  // Pause thread in scheduler
+  scheduler.pauseThread(curr_thread)
+}
+
+// function block_thread() {
+//   // Save state to threads map
+//   threads.set(curr_thread, [OS, PC, E, RTS])
+
+//   // Block thread in scheduler
+//   scheduler.blockThread(curr_thread)
+// }
+
+// Initialize the scheduler (do this before running code)
+function init_scheduler() {
+  scheduler = new Scheduler()
+  threads.clear()
 }
 
 function run() {
-  OS = []
-  PC = 0
-  E = global_environment
-  RTS = []
+  init_scheduler()
+  PC = 0;
+  new_thread()
+  next_thread()
   heap.reset_string_pool() // ADDED CHANGE
   // print_code()
   while (!(instrs[PC].tag === 'DONE')) {
+    if (curr_thread === -1) {
+      // current goroutine finished execution
+      if (!scheduler.hasIdleThreads()) break;
+      next_thread();
+    }
+    if (TO <= 0 && scheduler.hasIdleThreads()) {
+      pause_thread()
+      next_thread()
+    }
     const instr = instrs[PC++]
     microcode[instr.tag](instr)
+    TO--;
   }
 
   return heap.address_to_JS_value(peek(OS, 0))
