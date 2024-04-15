@@ -388,7 +388,10 @@ for (let i = 0; i < primitive_values.length; i++) {
   }
 }
 
-const global_environment = heap.heap_Environment_extend(frame_address, heap.heap_empty_Environment())
+const global_environment = heap.heap_Environment_extend(
+  frame_address,
+  heap.heap_empty_Environment()
+)
 
 /* *******
  * machine
