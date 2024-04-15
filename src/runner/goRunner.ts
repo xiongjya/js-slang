@@ -244,20 +244,14 @@ const compile_comp = {
     }
     instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
   },
-  GoExpression: (comp: any, ce: any) => {
-    compile(
-      {
-        type: 'Identifier',
-        name: comp.callee.name
-      },
-      ce
-    )
-    for (let arg of comp.arguments) {
-      compile(arg, ce)
-    }
+  GoRoutine: (comp: any, ce: any) => {
     const start_wc = wc
     instrs[wc++] = { tag: 'GO_START', end_pc: -1 }
-    instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
+
+    // THIS MEANS THE ARGUMENTS WILL ONLY BE EVALUATED WHEN SWITCHING TO GOROUTINE THREAD
+    comp.type = 'CallExpression'
+    compile(comp, ce)
+
     instrs[wc++] = { tag: 'GO_END' }
     instrs[start_wc].end_pc = wc;
   },
@@ -494,7 +488,6 @@ const microcode = {
     }
   },
   GO_START: (instr: any) => {
-    PC++;
     new_thread();
     PC = instr.end_pc
   },
@@ -505,7 +498,7 @@ const microcode = {
 
 function new_thread() {
   const newId = scheduler.newThread()
-  threads.set(newId, [[], PC, global_environment, []])
+  threads.set(newId, [[], PC, E, []])
 }
 
 function delete_thread() {
@@ -519,7 +512,6 @@ function delete_thread() {
 
 function next_thread() {
   ;[curr_thread, TO] = scheduler.selectNextThread()!
-
   // Load thread state
   ;[OS, PC, E, RTS] = threads.get(curr_thread)!
 }
@@ -548,7 +540,9 @@ function init_scheduler() {
 
 function run() {
   init_scheduler()
+  OS = [];
   PC = 0;
+  E = global_environment;
   new_thread()
   next_thread()
   heap.reset_string_pool() // ADDED CHANGE
