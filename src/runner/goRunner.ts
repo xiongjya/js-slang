@@ -6,7 +6,7 @@ type Thread = [
   any[], // OS
   number, // PC
   number, // ENV
-  any[], // RTS
+  any[] // RTS
 ]
 
 const heap = new Heap()
@@ -253,7 +253,7 @@ const compile_comp = {
     compile(comp, ce)
 
     instrs[wc++] = { tag: 'GO_END' }
-    instrs[start_wc].end_pc = wc;
+    instrs[start_wc].end_pc = wc
   },
   AssignmentExpression:
     // store precomputed position info in ASSIGN instruction
@@ -488,7 +488,7 @@ const microcode = {
     }
   },
   GO_START: (instr: any) => {
-    new_thread();
+    new_thread()
     PC = instr.end_pc
   },
   GO_END: (instr: any) => {
@@ -540,9 +540,9 @@ function init_scheduler() {
 
 function run() {
   init_scheduler()
-  OS = [];
-  PC = 0;
-  E = global_environment;
+  OS = []
+  PC = 0
+  E = global_environment
   new_thread()
   next_thread()
   heap.reset_string_pool() // ADDED CHANGE
@@ -550,8 +550,8 @@ function run() {
   while (!(instrs[PC].tag === 'DONE')) {
     if (curr_thread === -1) {
       // current goroutine finished execution
-      if (!scheduler.hasIdleThreads()) break;
-      next_thread();
+      if (!scheduler.hasIdleThreads()) break
+      next_thread()
     }
     if (TO <= 0 && scheduler.hasIdleThreads()) {
       pause_thread()
@@ -559,7 +559,7 @@ function run() {
     }
     const instr = instrs[PC++]
     microcode[instr.tag](instr)
-    TO--;
+    TO--
   }
 
   return heap.address_to_JS_value(peek(OS, 0))

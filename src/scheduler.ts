@@ -40,7 +40,7 @@ export class Scheduler {
     this._runningThreads.delete(id)
     this._idleThreads.push(id)
   }
-  
+
   // runnning -> blocked
   blockThread(id: ThreadId): void {
     this._runningThreads.delete(id)
