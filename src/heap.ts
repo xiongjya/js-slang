@@ -318,7 +318,7 @@ export default class Heap {
   // followed by the addresses of its values
 
   heap_allocate_Frame(number_of_values: any) {
-    this.heap_allocate(Heap.Frame_tag, number_of_values + 1)
+    return this.heap_allocate(Heap.Frame_tag, number_of_values + 1)
   }
 
   heap_Frame_display(address: any) {
