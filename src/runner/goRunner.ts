@@ -65,7 +65,7 @@ const value_index = (frame: any, x: any) => {
 // to save the creation of an intermediate
 // argument array
 const builtin_object = {
-  display: () => {
+  Println: () => {
     const address = OS.pop()
     console.log(heap.address_to_JS_value(address))
     return address
