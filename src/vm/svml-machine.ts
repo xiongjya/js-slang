@@ -1569,25 +1569,14 @@ M[OpCodes.EXECUTE] = () => {
   E = OS // we need the values in OS, so store in E first
   G = [OS, ENV, PC, P, RTS, TOP_RTS] // store current state first
   // Keep track of registers first to restore present state after saving threads
-  // iterating through the number of arguments a.k.a the number of threads to spawn
   for (; I > 0; I = I - 1) {
-    // create a new runtime stack
     RTS = []
-    // top of the rts pointer is -1
     TOP_RTS = -1
-    // assign OS to value in register E
     OS = E
-    // pop from the os, the result is stored in register RES
-    // assuming what is popped is the reference to the function in the heap
     POP_OS()
-    // register H stores what is in register RES, the closure of the function
-    // closure = function + lexical environment where the function is declared in
     H = RES // store closure in H
-    // register F stores function body
     F = HEAP[H + CLOSURE_FUNC_INDEX_SLOT]
-    // FUNC is the function array that stores functions in the program
     F = FUNC[F] // store function header in F
-    // register A stores the max stack size offset
     A = F[FUNC_MAX_STACK_SIZE_OFFSET]
     NEW_OS()
     OS = RES

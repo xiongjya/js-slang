@@ -225,7 +225,7 @@ function extractAndRenameNames(
         } while (names.has(name))
         namesToRename.set(oldName, name)
       }
-      const isVar = node.kind === 'var'
+      const isVar = node.kind === 'let'
       const index = names.size
       names.set(name, { index, isVar })
     } else if (stmt.type === 'FunctionDeclaration') {

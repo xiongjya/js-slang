@@ -139,7 +139,9 @@ const global_compile_environment = [global_compile_frame]
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration', 'ChannelDeclaration'].includes(comp.type)) {
+  } else if (
+    ['ConstDeclaration', 'VariableDeclaration', 'ChannelDeclaration'].includes(comp.type)
+  ) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
     return [comp.id.name]
@@ -330,19 +332,16 @@ const compile_comp = {
     )
   },
   ChannelDeclaration: (comp: any, ce: any) => {
-    const channel_size = comp.inits[0].len;
-    compile(channel_size, ce);
+    const channel_size = comp.inits[0].len
+    compile(channel_size, ce)
 
     const type = comp.inits[0].type
-    const channel_type = type === 'int'
-                 ? 1
-                 : type === 'bool'
-                 ? 2
-                 : error(`unable to create channel of type ${type}`)
+    const channel_type =
+      type === 'int' ? 1 : type === 'bool' ? 2 : error(`unable to create channel of type ${type}`)
 
-    instrs[wc++] = { 
-      tag: 'NEW_CHAN', 
-      type: channel_type,
+    instrs[wc++] = {
+      tag: 'NEW_CHAN',
+      type: channel_type
     }
     instrs[wc++] = {
       tag: 'ASSIGN',
