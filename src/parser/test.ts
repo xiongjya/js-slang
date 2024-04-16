@@ -14,8 +14,26 @@ import { parse } from './parser'
 // x;
 // `
 
+// const no_wg_program = `
+// x := 10;
+// func f() {
+//   x = 2;
+// }
+// go f();
+// x;
+// `
+
 const program = `
-    2+3;
+x := 10;
+var wg WaitGroup;
+wg.Add();
+func f() {
+  x = 2;
+  wg.Done();
+}
+go f();
+wg.Wait();
+x;
 `
 function main() {
   const variant = Variant.CONCURRENT
