@@ -247,7 +247,7 @@ const compile_comp = {
   GoRoutine: (comp: any, ce: any) => {
     comp.type = 'CallExpression'
     compile(comp, ce)
-    
+
     // Swap the CALL instruction with GO_START s.t. instr order is
     // eval of arguments -> GO_START -> CALL -> GO_END
     const call_ix = instrs[wc - 1]
@@ -447,7 +447,8 @@ const microcode = {
     const closure_address = heap.heap_allocate_Closure(instr.arity, instr.addr, E)
     push(OS, closure_address)
   },
-  CALL: (instr: any) => { // call requires OS to have [fun, arg1, arg2 ... argn] in bottom -> top order
+  CALL: (instr: any) => {
+    // call requires OS to have [fun, arg1, arg2 ... argn] in bottom -> top order
     const arity = instr.arity
     const fun = peek(OS, arity)
     if (heap.is_Builtin(fun)) {
@@ -489,13 +490,13 @@ const microcode = {
   },
   GO_START: (instr: any) => {
     const tid = new_thread()
-    ;const [other_OS, ] = threads.get(tid)!
-    other_OS.push(...OS.slice(- instr.arity - 1));
-    OS = OS.slice(0, - instr.arity - 2);
+    const [other_OS] = threads.get(tid)!
+    other_OS.push(...OS.slice(-instr.arity - 1))
+    OS = OS.slice(0, -instr.arity - 2)
 
     // Copy [fn, arg1, ..., argn ] from curr thread OS to the goroutine's OS
     PC += 2 // Skip the CALL and GO_END instrs
-    push(OS, undefined); // result of executing a go f() statement
+    push(OS, undefined) // result of executing a go f() statement
   },
   GO_END: (instr: any) => {
     delete_thread()
@@ -564,7 +565,7 @@ function run() {
       pause_thread()
       next_thread()
     }
-    
+
     // console.log(curr_thread)
     // console.log(instrs[PC])
     const instr = instrs[PC++]
