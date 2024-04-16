@@ -492,7 +492,7 @@ const microcode = {
     const tid = new_thread()
     const [other_OS] = threads.get(tid)!
     other_OS.push(...OS.slice(-instr.arity - 1))
-    OS = OS.slice(0, -instr.arity - 2)
+    OS = OS.slice(0, -instr.arity - 1)
 
     // Copy [fn, arg1, ..., argn ] from curr thread OS to the goroutine's OS
     PC += 2 // Skip the CALL and GO_END instrs
