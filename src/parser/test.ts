@@ -26,7 +26,7 @@ import { parse } from './parser'
 const program = `
 x := 10;
 var wg WaitGroup;
-wg.Add();
+wg.Add(1);
 func f() {
   x = 2;
   wg.Done();
