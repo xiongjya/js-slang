@@ -38,6 +38,7 @@ export default class Heap {
   static Pair_tag = 11
   static Builtin_tag = 12
   static String_tag = 13 // ADDED CHANGE
+  static Channel_tag = 14
 
   static heap_make(bytes: any): DataView {
     const data = new ArrayBuffer(bytes)
@@ -219,6 +220,25 @@ export default class Heap {
 
   heap_get_string(address: any) {
     return this.stringPool[this.heap_get_string_hash(address)][1]
+  }
+
+  // channel: additional slot for information
+  // [1 byte tag, 1 byte size, 1 byte type,
+  //  1 byte read pointer, 1 byte write pointer,
+  //  2 bytes #children, 1 byte mutex]
+  // Note: #children is 0
+  is_Channel(address: any) {
+    return this.heap_get_tag(address) === Heap.Channel_tag
+  }
+
+  heap_allocate_Channel(size: number, type: number) {
+    const address = this.heap_allocate(Heap.Channel_tag, size)
+
+    // information about the channel
+    this.heap_set_byte_at_offset(address, 1, size)
+    this.heap_set_byte_at_offset(address, 2, type)
+
+    return address
   }
 
   // builtins: builtin id is encoded in second byte
@@ -447,6 +467,8 @@ export default class Heap {
       ? '<closure>'
       : this.is_Builtin(x)
       ? '<builtin>'
+      : this.is_Channel(x)
+      ? '<channel>'
       : 'unknown word tag: ' + Heap.word_to_string(x)
   }
 

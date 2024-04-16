@@ -151,7 +151,6 @@ Keyword
   / IfToken
   / NewToken
   / ReturnToken
-  / SwitchToken
   / VarToken
 
 Types
@@ -389,31 +388,31 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 
 // Tokens
 
-BreakToken      = "break"             !IdentifierPart
-CaseToken       = "case"              !IdentifierPart
-ChanToken       = "chan"              !IdentifierPart
-ConstToken      = "const"             !IdentifierPart
-ContinueToken   = "continue"          !IdentifierPart
-DefaultToken    = "default"           !IdentifierPart
-ElseToken       = "else"              !IdentifierPart
-FalseToken      = "false"             !IdentifierPart
-ForToken        = "for"               !IdentifierPart
-FunctionToken   = "func"              !IdentifierPart
-GoToken         = "go"                !IdentifierPart
-GotoToken       = "goto"              !IdentifierPart
-IfToken         = "if"                !IdentifierPart
-ImportToken     = "import"            !IdentifierPart
-MakeToken       = "make"              !IdentifierPart
-NewToken        = "new"               !IdentifierPart
-NilToken        = "nil"               !IdentifierPart
-RangeToken      = "range"             !IdentifierPart
-ReturnToken     = "return"            !IdentifierPart
-SelectToken     = "select"            !IdentifierPart
-StructToken     = "struct"            !IdentifierPart
-SwitchToken     = "switch"            !IdentifierPart
-TrueToken       = "true"              !IdentifierPart
-TypeToken       = "type"              !IdentifierPart
-VarToken        = "var"               !IdentifierPart
+BreakToken      = "break"      !IdentifierPart
+CaseToken       = "case"       !IdentifierPart
+ChanToken       = "chan"       !IdentifierPart
+ConstToken      = "const"      !IdentifierPart
+ContinueToken   = "continue"   !IdentifierPart
+DefaultToken    = "default"    !IdentifierPart
+ElseToken       = "else"       !IdentifierPart
+FalseToken      = "false"      !IdentifierPart
+ForToken        = "for"        !IdentifierPart
+FunctionToken   = "func"       !IdentifierPart
+GoToken         = "go"         !IdentifierPart
+GotoToken       = "goto"       !IdentifierPart
+IfToken         = "if"         !IdentifierPart
+ImportToken     = "import"     !IdentifierPart
+MakeToken       = "make"       !IdentifierPart
+NewToken        = "new"        !IdentifierPart
+NilToken        = "nil"        !IdentifierPart
+RangeToken      = "range"      !IdentifierPart
+ReturnToken     = "return"     !IdentifierPart
+SelectToken     = "select"     !IdentifierPart
+StructToken     = "struct"     !IdentifierPart
+SwitchToken     = "switch"     !IdentifierPart
+TrueToken       = "true"       !IdentifierPart
+TypeToken       = "type"       !IdentifierPart
+VarToken        = "var"        !IdentifierPart
 
 // Types
 
@@ -423,6 +422,7 @@ IntToken        = "int"                   !IdentifierPart
 UIntToken       = "uint"                  !IdentifierPart
 ByteToken       = "byte"                  !IdentifierPart
 FloatToken      = ("float32" / "float64") !IdentifierPart
+WaitGroupToken  = "WaitGroup"             !IdentifierPart
 
 // Skipped
 
@@ -554,12 +554,8 @@ NewExpression
 GoRoutineExpression
   = GoToken __ func:CallExpression {
     return {
-      type: "GoRoutineExpression",
-      callee: {
-        type: "Identifier",
-        name: "go"
-      },
-      arguments: [func]
+      ...func,
+      type: "GoRoutine"
     }
   }
 
@@ -842,7 +838,6 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
-  / ChannelReceiveExpression
 
 AssignmentExpressionNoIn
   = left:LeftHandSideExpression __
@@ -869,14 +864,6 @@ AssignmentExpressionNoIn
     }
   / ConditionalExpressionNoIn
 
-ChannelReceiveExpression
-  = "<-" __ right:Identifier {
-      return {
-        type: "ChannelReceiveExpression",
-        right: right
-      };
-    }
-
 AssignmentOperator
   = "**="
   / "*="
@@ -891,16 +878,18 @@ AssignmentOperator
   / "^="
   / "|="
 
-// Expression
-
 Expression
-  = head:AssignmentExpression {
-      return head;
+  = head:AssignmentExpression tail:(__ "," __ AssignmentExpression)* {
+      return tail.length > 0
+        ? { type: "SequenceExpression", expressions: buildList(head, tail, 3) }
+        : head;
     }
 
 ExpressionNoIn
-  = head:AssignmentExpressionNoIn {
-      return head;
+  = head:AssignmentExpressionNoIn tail:(__ "," __ AssignmentExpressionNoIn)* {
+      return tail.length > 0
+        ? { type: "SequenceExpression", expressions: buildList(head, tail, 3) }
+        : head;
     }
 
 // ----- A.4 Statements -----
@@ -909,10 +898,9 @@ Statement
   = Block
   / ConstantStatement
   / VariableStatement
-  / ShortVariableStatement
   / ChannelStatement
+  / ShortVariableStatement
   / EmptyStatement
-  / ChannelSendStatement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
@@ -935,7 +923,7 @@ StatementList
 ConstantStatement
   = ConstToken __ declarations:DeclarationSpecification EOS {
       return {
-        type: "VariableDeclaration",
+        type: "ConstDeclaration",
         kind: "const",
         ...declarations
       };
@@ -958,21 +946,21 @@ ChannelStatement
         ...declarations
       }
     }
-  / id:Identifier __ ":=" __ init:(ChannelExpression) EOS {
+  / id:IdentifierList __ ":=" __ init:(ChannelExpression) EOS {
       return {
         type: "ChannelDeclaration",
         kind: "var",
-        id: id,
+        ids: id,
         inits: init
       }
     }
 
 ChannelSpecification
-  = id:Identifier __ ChanToken __ type:(Types) __ init:(__ ChannelInitialiser)? {
+  = id:IdentifierList __ ChanToken __ type:(Types) __ init:(__ ChannelInitialiser) {
       return {
-        id: id,
-        inits: extractOptional(init, 1),
-        type: `chan ${type[0]}`,
+        ids: id,
+        inits: [extractOptional(init, 1)],
+        chanType: type[0],
       }
     }
 
@@ -984,7 +972,11 @@ ChannelInitialiser
 ChannelExpression
   = MakeToken "(" ChanToken __ type:Types ")" {
       return {
-        type: type[0]
+        type: type[0],
+        len: {
+          type: 'Literal',
+          value: 1
+        }
       };
     }
   / ChannelExpressionWithSize
@@ -997,16 +989,17 @@ ChannelExpressionWithSize
       };
     }
 
-FunctionDeclarationTypeSpecification
-  = ids:Identifier __ type:(Types) {
+DeclarationTypeSpecification
+  = ids:IdentifierList __ type:(Types) init:(__ InitialiserList)? {
 	  return {
         ids: ids,
+        inits: extractOptional(init, 1),
         vartype: type[0]
       }
     }
 
 DeclarationSpecification
-  = ids:Identifier __ init:(Initialiser) {
+  = ids:IdentifierList __ init:(InitialiserList) {
 	  return {
         ids: ids,
         inits: init,
@@ -1015,24 +1008,38 @@ DeclarationSpecification
     }
     / DeclarationTypeSpecification
 
-DeclarationTypeSpecification
-  = ids:Identifier __ type:(Types) init:(__ Initialiser)? {
-	  return {
-        ids: ids,
-        inits: extractOptional(init, 1),
-        vartype: type[0]
-      }
-    }
-
 ShortVariableStatement
-  = ids:Identifier __ ":=" __ init:(Expression) EOS {
+  = ids:IdentifierList __ ":=" __ init:(ExpressionList) EOS {
       return {
         type: "VariableDeclaration",
         kind: "var",
         ids: ids,
-        inits: init
+        inits: init,
+        vartype: null
       };
    }
+ 
+IdentifierList
+  = head:Identifier tail:(__ "," __ Identifier) * {
+      return buildList(head, tail, 3);
+    }
+
+
+InitialiserList
+  = "=" !"=" expr:ExpressionList {
+   return expr;
+  }
+  
+ExpressionList
+  = __ head:AssignmentExpression tail:(__ "," __ AssignmentExpression) * {
+      return buildList(head, tail, 3);
+    }
+
+
+VariableDeclarationList
+  = head:VariableDeclaration tail:(__ "," __ VariableDeclaration)* {
+      return buildList(head, tail, 3);
+    }
 
 VariableDeclarationListNoIn
   = head:VariableDeclarationNoIn tail:(__ "," __ VariableDeclarationNoIn)* {
@@ -1065,16 +1072,6 @@ InitialiserNoIn
 
 EmptyStatement
   = ";" { return { type: "EmptyStatement" }; }
-
-ChannelSendStatement
-  = left:Identifier __ "<-" __ right:AssignmentExpression {
-      return {
-        type: "ChannelSendStatement",
-        operator: "<-",
-        left: left,
-        right: right
-      };
-    }
 
 ExpressionStatement
   = !("{" / FunctionToken) expression:Expression EOS {
@@ -1206,7 +1203,7 @@ FunctionExpression
     }
 
 FormalParameterList
-  = head:FunctionDeclarationTypeSpecification tail:(__ "," __ FunctionDeclarationTypeSpecification)* {
+  = head:DeclarationTypeSpecification tail:(__ "," __ DeclarationTypeSpecification)* {
       return buildList(head, tail, 3);
     }
 

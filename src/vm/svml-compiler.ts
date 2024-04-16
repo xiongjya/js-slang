@@ -927,31 +927,6 @@ const compilers = {
 
   DebuggerStatement(_node: Node, _indexTable: Map<string, EnvEntry>[], _insertFlag: boolean) {
     throw Error('Unsupported operation')
-  },
-
-  GoRoutineExpression(
-    node: Node, 
-    indexTable: Map<string, EnvEntry>[], 
-    insertFlag: boolean, 
-    isTailCallPosition: boolean = false
-  ) {
-    node = node as es.CallExpression
-    let maxStackOperator = 0
-    let callValue: any = NaN
-
-    const callee = node.callee as es.Identifier
-    const { index } = indexOf(indexTable, callee)
-    callValue = index
-
-    addBinaryInstruction(
-      isTailCallPosition ? OpCodes.CALLTV : OpCodes.CALLV,
-      callValue,
-      node.arguments.length
-    )
-
-    let maxStackOperands = compileArguments(node.arguments, indexTable)
-
-    return { maxStackSize: Math.max(maxStackOperator, maxStackOperands, 1), insertFlag }
   }
 }
 
