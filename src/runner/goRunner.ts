@@ -309,7 +309,7 @@ const compile_comp = {
   },
   VariableDeclaration: (comp: any, ce: any) => {
     if (comp.vartype === 'WaitGroup') {
-      for (let { name } of comp.ids) waitgroups.set(name, new WaitGroup());
+      for (let { name } of comp.ids) waitgroups.set(name, new WaitGroup())
       return
     }
     if (!comp.inits) return
