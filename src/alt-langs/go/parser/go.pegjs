@@ -1042,18 +1042,18 @@ VariableDeclarationListNoIn
 VariableDeclaration
   = id:Identifier __ init:(__ Initialiser)? {
       return {
-        type: "VariableDeclarator",
-        id: id,
-        init: extractOptional(init, 1)
+        type: "VariableDeclaration",
+        ids: [id],
+        inits: [extractOptional(init, 1)]
       };
     }
 
 VariableDeclarationNoIn
   = id:Identifier init:(__ InitialiserNoIn)? {
       return {
-        type: "VariableDeclarator",
-        id: id,
-        init: extractOptional(init, 1)
+        type: "VariableDeclaration",
+        ids: [id],
+        inits: [extractOptional(init, 1)]
       };
     }
 
@@ -1109,39 +1109,41 @@ IfStatement
 
 IterationStatement
   = ForToken __
-    "(" __
     init:(ExpressionNoIn __)? ";" __
     test:(Expression __)? ";" __
     update:(Expression __)?
-    ")" __
     body:Statement
     {
       return {
-        type: "ForStatement",
-        init: extractOptional(init, 0),
-        test: extractOptional(test, 0),
-        update: extractOptional(update, 0),
-        body: body
+        type: "seq",
+        stmts: [
+          extractOptional(init, 0),
+          {
+            type: "ForStatement",
+            test: extractOptional(test, 0),
+            update: extractOptional(update, 0),
+            body: optionalList(body)
+          }
+        ]
       };
     }
   / ForToken __
-    "(" __
     VarToken __ declarations:VariableDeclarationListNoIn __ ";" __
     test:(Expression __)? ";" __
     update:(Expression __)?
-    ")" __
     body:Statement
     {
       return {
-        type: "ForStatement",
-        init: {
-          type: "VariableDeclaration",
-          declarations: declarations,
-          kind: "var"
-        },
-        test: extractOptional(test, 0),
-        update: extractOptional(update, 0),
-        body: body
+        type: "seq",
+        stmts: [
+          extractOptional(declarations, 0),
+          {
+            type: "ForStatement",
+            test: extractOptional(test, 0),
+            update: extractOptional(update, 0),
+            body: optionalList(body)
+          }
+        ]
       };
     }
 

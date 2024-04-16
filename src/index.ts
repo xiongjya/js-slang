@@ -41,6 +41,7 @@ import {
   resolvedErrorPromise,
   sourceFilesRunner
 } from './runner'
+import { goRunner } from './runner/goRunner'
 
 export interface IOptions {
   scheduler: 'preemptive' | 'async'
@@ -234,6 +235,11 @@ export async function runFilesInContext(
   if (code === undefined) {
     context.errors.push(new ModuleNotFoundError(entrypointFilePath))
     return resolvedErrorPromise
+  }
+
+  if (context.chapter === Chapter.GO_1) {
+    const program = parse(code, context)
+    return goRunner(program)
   }
 
   if (
