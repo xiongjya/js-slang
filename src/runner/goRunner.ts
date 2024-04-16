@@ -245,15 +245,15 @@ const compile_comp = {
     instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
   },
   GoRoutine: (comp: any, ce: any) => {
-    const start_wc = wc
-    instrs[wc++] = { tag: 'GO_START', end_pc: -1 }
-
-    // THIS MEANS THE ARGUMENTS WILL ONLY BE EVALUATED WHEN SWITCHING TO GOROUTINE THREAD
     comp.type = 'CallExpression'
     compile(comp, ce)
 
+    // Swap the CALL instruction with GO_START s.t. instr order is
+    // eval of arguments -> GO_START -> CALL -> GO_END
+    const call_ix = instrs[wc - 1]
+    instrs[wc - 1] = { tag: 'GO_START', arity: comp.arguments.length }
+    instrs[wc++] = call_ix
     instrs[wc++] = { tag: 'GO_END' }
-    instrs[start_wc].end_pc = wc
   },
   AssignmentExpression:
     // store precomputed position info in ASSIGN instruction
@@ -448,6 +448,7 @@ const microcode = {
     push(OS, closure_address)
   },
   CALL: (instr: any) => {
+    // call requires OS to have [fun, arg1, arg2 ... argn] in bottom -> top order
     const arity = instr.arity
     const fun = peek(OS, arity)
     if (heap.is_Builtin(fun)) {
@@ -488,17 +489,24 @@ const microcode = {
     }
   },
   GO_START: (instr: any) => {
-    new_thread()
-    PC = instr.end_pc
+    const tid = new_thread()
+    const [other_OS] = threads.get(tid)!
+    other_OS.push(...OS.slice(-instr.arity - 1))
+    OS = OS.slice(0, -instr.arity - 2)
+
+    // Copy [fn, arg1, ..., argn ] from curr thread OS to the goroutine's OS
+    PC += 2 // Skip the CALL and GO_END instrs
+    push(OS, undefined) // result of executing a go f() statement
   },
   GO_END: (instr: any) => {
     delete_thread()
   }
 }
 
-function new_thread() {
+function new_thread(): ThreadId {
   const newId = scheduler.newThread()
   threads.set(newId, [[], PC, E, []])
+  return newId
 }
 
 function delete_thread() {
@@ -557,6 +565,9 @@ function run() {
       pause_thread()
       next_thread()
     }
+
+    // console.log(curr_thread)
+    // console.log(instrs[PC])
     const instr = instrs[PC++]
     microcode[instr.tag](instr)
     TO--
