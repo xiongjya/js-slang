@@ -40,10 +40,10 @@ const wrap_in_block = (program: any) => ({
 })
 
 const channel_type_to_int = {
-  'int': 1,
-  'bool': 2,
-  'string': 3,
-};
+  int: 1,
+  bool: 2,
+  string: 3
+}
 
 /* ************************
  * compile-time environment
@@ -345,9 +345,10 @@ const compile_comp = {
 
     const [buffered_type, type] = comp.inits[0].type
     const is_buffered = buffered_type === 'buffered'
-    const channel_type = type in channel_type_to_int 
-                         ? channel_type_to_int[type]
-                         : error(`unable to create a channel of type ${type}`)
+    const channel_type =
+      type in channel_type_to_int
+        ? channel_type_to_int[type]
+        : error(`unable to create a channel of type ${type}`)
 
     instrs[wc++] = {
       tag: 'NEW_CHAN',
@@ -364,7 +365,13 @@ const compile_comp = {
     compile(comp.right, ce)
 
     instrs[wc++] = {
-      tag: 'CHAN_SEND',
+      tag: 'CHAN_WRITE',
+      pos: compile_time_environment_position(ce, comp.left.name)
+    }
+  },
+  ChannelReceieveExpression: (comp: any, ce: any) => {
+    instrs[wc++] = {
+      tag: 'CHAN_READ',
       pos: compile_time_environment_position(ce, comp.left.name)
     }
   },
@@ -545,24 +552,24 @@ const microcode = {
     const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_buffered)
     push(OS, frame_address)
   },
-  CHAN_SEND: (instr: any) => {
-    const channel = peek(OS, 0)
-    const item = peek(OS, 1)
+  CHAN_WRITE: (instr: any) => {
+    const channel = instr.pos
+    const item = OS.pop()
 
     // check item type
     const item_type = heap.is_Number(item)
-                      ? 1
-                      : heap.is_Boolean(item)
-                      ? 2
-                      : heap.is_String(item)
-                      ? 3
-                      : -1;
+      ? 1
+      : heap.is_Boolean(item)
+      ? 2
+      : heap.is_String(item)
+      ? 3
+      : -1
     const channel_type = heap.heap_get_Channel_type(channel)
     if (item_type !== channel_type) {
       return error('error inserting item into channel: mismatched types')
     }
 
-    // check channel size
+    // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
 
     // pause thread if full
@@ -573,6 +580,29 @@ const microcode = {
 
     // else write item in channel
     heap.heap_Channel_write(channel, item)
+
+    // if is unbuffered channel, pause thread
+    const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
+    if (is_unbuffered_channel) {
+      pause_thread()
+    }
+  },
+  CHAN_READ: (instr: any) => {
+    const channel = instr.pos
+
+    // check if channel is empty
+    const is_empty = heap.heap_is_Channel_empty(channel) 
+
+    if (is_empty) {
+      PC--
+      pause_thread()
+    }
+
+    // else read item from channel
+    const item = heap.heap_Channel_read(channel)
+    
+    // push to OS
+    push(OS, item)
 
     // if is unbuffered channel, pause thread
     const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)

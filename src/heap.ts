@@ -243,9 +243,7 @@ export default class Heap {
 
   // n slots: each store address of channel
   heap_allocate_Channel(size: number, type: number, is_buffered: boolean) {
-    const chan_tag = is_buffered 
-                     ? Heap.Buffered_Channel_tag
-                     : Heap.Unbuffered_Channel_tag
+    const chan_tag = is_buffered ? Heap.Buffered_Channel_tag : Heap.Unbuffered_Channel_tag
     const chan_size = size + 4
     const address = this.heap_allocate(chan_tag, chan_size)
 
@@ -260,7 +258,7 @@ export default class Heap {
 
     // empty the slots
     for (let i = 0; i < size; i++) {
-      this.heap_set(address + 4 + i, 0);
+      this.heap_set(address + 4 + i, 0)
     }
 
     return address
@@ -270,19 +268,43 @@ export default class Heap {
     return this.heap_get_byte_at_offset(address, 1)
   }
 
+  heap_is_Channel_empty(address: any) {
+    // get read pointer
+    const read_ptr = this.heap_get(address + 3)
+
+    // check if space is occupied
+    return read_ptr === 0
+  }
+
   heap_is_Channel_full(address: any) {
     // get write pointer
     const write_ptr = this.heap_get(address + 2)
-    
+
     // check if space is occupied
     return write_ptr !== 0
+  }
+
+  heap_Channel_read(address: any) {
+    // get item from read pointer
+    let read_ptr = this.heap_get(address + 3)
+    const item = this.heap_get(address + 4 + read_ptr)
+
+    // clear what read pointer points to
+    this.heap_set(address + 4 + read_ptr, 0)
+
+    // increment read pointer
+    const channel_size = this.heap_get(address + 1)
+    read_ptr = (read_ptr + 1) % channel_size
+    this.heap_set(address + 3, read_ptr)
+
+    return item
   }
 
   heap_Channel_write(address: any, item: any) {
     // assign to write pointer
     let write_ptr = this.heap_get(address + 2)
-    this.heap_set(address + write_ptr + 4, item)
-    
+    this.heap_set(address + 4 + write_ptr, item)
+
     // increment write pointer
     const channel_size = this.heap_get(address + 1)
     write_ptr = (write_ptr + 1) % channel_size
