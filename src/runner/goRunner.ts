@@ -14,6 +14,54 @@ let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
 let curr_thread: ThreadId = -1
 
+// blocked threads due to channel
+// waiting to read
+const channel_read_block_threads: Map<any, ThreadId[]> = new Map()
+// waiting to write
+const channel_write_block_threads: Map<any, ThreadId[]> = new Map()
+
+function unblock_read_thread(address: any) {
+  const blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
+
+  if (blocked_threads !== undefined) {
+    const next_thread: ThreadId | undefined = blocked_threads.shift()
+    if (next_thread) {
+      scheduler.unblockThread(next_thread)
+    }
+  }
+}
+
+function unblock_write_thread(address: any) {
+  const blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
+
+  if (blocked_threads !== undefined) {
+    const next_thread: ThreadId | undefined = blocked_threads.shift()
+    if (next_thread) {
+      scheduler.unblockThread(next_thread)
+    }
+  }
+}
+
+function block_read_thread(channel: any, id: ThreadId) {
+  let blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(channel)
+
+  if (!blocked_threads) {
+    blocked_threads = []
+  }
+  blocked_threads.push(id)
+  channel_read_block_threads.set(channel, blocked_threads)
+}
+
+function block_write_thread(channel: any, id: ThreadId) {
+  let blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(channel)
+
+  if (!blocked_threads) {
+    blocked_threads = []
+  }
+  blocked_threads.push(id)
+  channel_write_block_threads.set(channel, blocked_threads)
+}
+
 // helper functions
 const peek = (array: any[], address: any) => array.slice(-1 - address)[0]
 
@@ -343,8 +391,8 @@ const compile_comp = {
     const channel_size = comp.inits[0].len
     compile(channel_size, ce)
 
-    const [buffered_type, type] = comp.inits[0].type
-    const is_buffered = buffered_type === 'buffered'
+    const [buffered_type, type] = (comp.inits[0].type).split(', ')
+    const is_buffered = buffered_type === 'buffered' ? 1 : 0
     const channel_type =
       type in channel_type_to_int
         ? channel_type_to_int[type]
@@ -572,43 +620,54 @@ const microcode = {
     // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
 
-    // pause thread if full
+    // block thread if full
     if (is_full) {
       PC--
-      pause_thread()
+      block_write_thread(channel, curr_thread)
+      block_thread()
     }
 
     // else write item in channel
     heap.heap_Channel_write(channel, item)
 
-    // if is unbuffered channel, pause thread
+    // if is unbuffered channel, block thread
     const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
     if (is_unbuffered_channel) {
-      pause_thread()
+      block_write_thread(channel, curr_thread)
+      block_thread()
     }
+
+    // unblock any random thread waiting to read from channel
+    unblock_read_thread(channel)
   },
   CHAN_READ: (instr: any) => {
     const channel = instr.pos
 
     // check if channel is empty
-    const is_empty = heap.heap_is_Channel_empty(channel) 
+    const is_empty = heap.heap_is_Channel_empty(channel)
 
+    // block thread if empty
     if (is_empty) {
       PC--
-      pause_thread()
+      block_read_thread(channel, curr_thread)
+      block_thread()
     }
 
     // else read item from channel
     const item = heap.heap_Channel_read(channel)
-    
+
     // push to OS
     push(OS, item)
 
-    // if is unbuffered channel, pause thread
+    // if is unbuffered channel, block thread
     const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
     if (is_unbuffered_channel) {
-      pause_thread()
+      block_read_thread(channel, curr_thread)
+      block_thread()
     }
+
+    // unblock any random thread waiting to write to channel
+    unblock_write_thread(channel)
   }
 }
 
@@ -641,13 +700,13 @@ function pause_thread() {
   scheduler.pauseThread(curr_thread)
 }
 
-// function block_thread() {
-//   // Save state to threads map
-//   threads.set(curr_thread, [OS, PC, E, RTS])
+function block_thread() {
+  // Save state to threads map
+  threads.set(curr_thread, [OS, PC, E, RTS])
 
-//   // Block thread in scheduler
-//   scheduler.blockThread(curr_thread)
-// }
+  // Block thread in scheduler
+  scheduler.blockThread(curr_thread)
+}
 
 // Initialize the scheduler (do this before running code)
 function init_scheduler() {

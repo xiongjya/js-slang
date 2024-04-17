@@ -38,8 +38,7 @@ export default class Heap {
   static Pair_tag = 11
   static Builtin_tag = 12
   static String_tag = 13 // ADDED CHANGE
-  static Buffered_Channel_tag = 14
-  static Unbuffered_Channel_tag = 14
+  static Channel_tag = 14
 
   static heap_make(bytes: any): DataView {
     const data = new ArrayBuffer(bytes)
@@ -225,31 +224,31 @@ export default class Heap {
 
   // channel:
   // [1 byte tag, 1 byte type,
-  //  3 bytes unused,
+  //  1 byte unbuffered, 2 bytes unused,
   //  2 bytes #children, 1 byte mutex]
   // Note: #children is 0
   // Additional 4 slots: channel information, channel size, channel write pointer, channel read pointer
   is_Channel(address: any) {
-    return this.is_Buffered_Channel(address) || this.is_Unbuffered_Channel(address)
+    return this.heap_get_tag(address) === Heap.Channel_tag
   }
 
   is_Buffered_Channel(address: any) {
-    return this.heap_get_tag(address) === Heap.Buffered_Channel_tag
+    return this.heap_get_byte_at_offset(address, 2) === 1
   }
 
   is_Unbuffered_Channel(address: any) {
-    return this.heap_get_tag(address) === Heap.Unbuffered_Channel_tag
+    return this.heap_get_byte_at_offset(address, 2) === 0
   }
 
   // n slots: each store address of channel
   heap_allocate_Channel(size: number, type: number, is_buffered: boolean) {
-    const chan_tag = is_buffered ? Heap.Buffered_Channel_tag : Heap.Unbuffered_Channel_tag
     const chan_size = size + 4
-    const address = this.heap_allocate(chan_tag, chan_size)
+    const address = this.heap_allocate(Heap.Channel_tag, chan_size)
 
     // information about the channel
     this.heap_set_byte_at_offset(address, 1, type)
     this.heap_set(address + 1, size)
+    this.heap_set(address + 2, is_buffered)
 
     // write pointer
     this.heap_set(address + 2, 0)
