@@ -838,6 +838,7 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
+  / ChannelReceiveExpression
 
 AssignmentExpressionNoIn
   = left:LeftHandSideExpression __
@@ -863,6 +864,14 @@ AssignmentExpressionNoIn
       };
     }
   / ConditionalExpressionNoIn
+
+ChannelReceiveExpression
+  = "<-" __ right:Identifier {
+      return {
+        type: "ChannelReceiveExpression",
+        right: right
+      }
+    }
 
 AssignmentOperator
   = "**="
@@ -901,6 +910,7 @@ Statement
   / ChannelStatement
   / ShortVariableStatement
   / EmptyStatement
+  / ChannelSendStatement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
@@ -972,7 +982,7 @@ ChannelInitialiser
 ChannelExpression
   = MakeToken "(" ChanToken __ type:Types ")" {
       return {
-        type: type[0],
+        type: `unbuffered, ${type[0]}`,
         len: {
           type: 'Literal',
           value: 1
@@ -984,7 +994,7 @@ ChannelExpression
 ChannelExpressionWithSize
   = MakeToken "(" ChanToken __ type:Types "," __ len:NumericLiteral ")" {
       return {
-        type: type[0],
+        type: `buffered, ${type[0]}`,
         len: len
       };
     }
@@ -1072,6 +1082,16 @@ InitialiserNoIn
 
 EmptyStatement
   = ";" { return { type: "EmptyStatement" }; }
+
+ChannelSendStatement
+  = left:Identifier __ "<-" __ right:AssignmentExpression {
+      return {
+        type: "ChannelSendStatement",
+        operator: "<-",
+        left: left,
+        right: right
+      }
+    }
 
 ExpressionStatement
   = !("{" / FunctionToken) expression:Expression EOS {

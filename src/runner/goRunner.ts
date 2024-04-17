@@ -28,7 +28,9 @@ function arity<T extends Function>(x: T): number {
   return x.length
 }
 
-const error = (...x: any) => new Error(x)
+const error = (...x: any) => {
+  throw new Error(x)
+}
 
 const get_time = () => Date.now()
 
@@ -36,6 +38,12 @@ const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
   body: [program]
 })
+
+const channel_type_to_int = {
+  'int': 1,
+  'bool': 2,
+  'string': 3,
+};
 
 /* ************************
  * compile-time environment
@@ -335,17 +343,29 @@ const compile_comp = {
     const channel_size = comp.inits[0].len
     compile(channel_size, ce)
 
-    const type = comp.inits[0].type
-    const channel_type =
-      type === 'int' ? 1 : type === 'bool' ? 2 : error(`unable to create channel of type ${type}`)
+    const [buffered_type, type] = comp.inits[0].type
+    const is_buffered = buffered_type === 'buffered'
+    const channel_type = type in channel_type_to_int 
+                         ? channel_type_to_int[type]
+                         : error(`unable to create a channel of type ${type}`)
 
     instrs[wc++] = {
       tag: 'NEW_CHAN',
-      type: channel_type
+      type: channel_type,
+      is_buffered
     }
     instrs[wc++] = {
       tag: 'ASSIGN',
       pos: compile_time_environment_position(ce, comp.ids[0].name)
+    }
+  },
+  ChannelSendStatement: (comp: any, ce: any) => {
+    // compile the item being sent
+    compile(comp.right, ce)
+
+    instrs[wc++] = {
+      tag: 'CHAN_SEND',
+      pos: compile_time_environment_position(ce, comp.left.name)
     }
   },
   EmptyStatement: (comp: any, ce: any) => {}
@@ -521,9 +541,44 @@ const microcode = {
     delete_thread()
   },
   NEW_CHAN: (instr: any) => {
-    const allocated_len = OS.pop() + 1
-    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type)
+    const allocated_len = OS.pop()
+    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_buffered)
     push(OS, frame_address)
+  },
+  CHAN_SEND: (instr: any) => {
+    const channel = peek(OS, 0)
+    const item = peek(OS, 1)
+
+    // check item type
+    const item_type = heap.is_Number(item)
+                      ? 1
+                      : heap.is_Boolean(item)
+                      ? 2
+                      : heap.is_String(item)
+                      ? 3
+                      : -1;
+    const channel_type = heap.heap_get_Channel_type(channel)
+    if (item_type !== channel_type) {
+      return error('error inserting item into channel: mismatched types')
+    }
+
+    // check channel size
+    const is_full = heap.heap_is_Channel_full(channel)
+
+    // pause thread if full
+    if (is_full) {
+      PC--
+      pause_thread()
+    }
+
+    // else write item in channel
+    heap.heap_Channel_write(channel, item)
+
+    // if is unbuffered channel, pause thread
+    const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
+    if (is_unbuffered_channel) {
+      pause_thread()
+    }
   }
 }
 
