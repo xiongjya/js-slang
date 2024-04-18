@@ -523,7 +523,7 @@ const microcode = {
     delete_thread()
   },
   WG_ADD: (instr: any) => {
-    let delta = OS.pop(); 
+    let delta = OS.pop()
     delta = delta === -1 ? delta : heap.address_to_JS_value(delta) // hacky haha
     const wg = waitgroups.get(instr.wg)
     if (wg) {
