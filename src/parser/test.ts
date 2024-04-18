@@ -61,15 +61,15 @@ const a = 10;
 b := 20;
 var x = make(chan);
 
-func f(x) {
-  x <- 'hello';
+func f(x, val) {
+  x <- val;
   Println("am i blocked");
   Println(b);
   Println(a);
 }
 
 for var i = 0; i < 5; i = i + 1 {
-  go f(x);
+  go f(x, i);
   y := <- x;
   Println(y);
 }
