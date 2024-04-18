@@ -233,11 +233,11 @@ export default class Heap {
   }
 
   is_Buffered_Channel(address: any) {
-    return this.heap_get_byte_at_offset(address, 2) === 1
+    return this.heap_get_byte_at_offset(address, 2) === 0
   }
 
   is_Unbuffered_Channel(address: any) {
-    return this.heap_get_byte_at_offset(address, 2) === 0
+    return this.heap_get_byte_at_offset(address, 2) === 1
   }
 
   // n slots: each store address of channel
@@ -247,8 +247,8 @@ export default class Heap {
 
     // information about the channel
     this.heap_set_byte_at_offset(address, 1, type)
+    this.heap_set_byte_at_offset(address, 2, is_buffered)
     this.heap_set(address + 1, size)
-    this.heap_set(address + 2, is_buffered)
 
     // write pointer
     this.heap_set(address + 2, 0)
@@ -272,7 +272,7 @@ export default class Heap {
     const read_ptr = this.heap_get(address + 3)
 
     // check if space is occupied
-    return read_ptr === 0
+    return this.heap_get(address + 4 + read_ptr) === 0
   }
 
   heap_is_Channel_full(address: any) {
@@ -280,7 +280,7 @@ export default class Heap {
     const write_ptr = this.heap_get(address + 2)
 
     // check if space is occupied
-    return write_ptr !== 0
+    return this.heap_get(address + 4 + write_ptr) !== 0
   }
 
   heap_Channel_read(address: any) {
@@ -308,6 +308,21 @@ export default class Heap {
     const channel_size = this.heap_get(address + 1)
     write_ptr = (write_ptr + 1) % channel_size
     this.heap_set(address + 2, write_ptr)
+  }
+
+  heap_Channel_print(address: any) {
+    const channel_size = this.heap_get(address + 1)
+
+    for (let i = 0; i < channel_size; i++) {
+      const addr = this.heap_get(address + 4 + i)
+
+      if (addr !== 0) {
+        const item = this.address_to_JS_value(addr)
+        console.log(item)
+      } else {
+        console.log(0)
+      }
+    }
   }
 
   // builtins: builtin id is encoded in second byte

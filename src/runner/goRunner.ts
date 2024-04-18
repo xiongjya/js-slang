@@ -25,7 +25,7 @@ function unblock_read_thread(address: any) {
 
   if (blocked_threads !== undefined) {
     const next_thread: ThreadId | undefined = blocked_threads.shift()
-    if (next_thread) {
+    if (next_thread !== undefined) {
       scheduler.unblockThread(next_thread)
     }
   }
@@ -36,10 +36,17 @@ function unblock_write_thread(address: any) {
 
   if (blocked_threads !== undefined) {
     const next_thread: ThreadId | undefined = blocked_threads.shift()
-    if (next_thread) {
+    if (next_thread !== undefined) {
       scheduler.unblockThread(next_thread)
     }
   }
+}
+
+function print_map(comment: string, ls: any) {
+  console.log(comment)
+  ls.forEach((v: any, k: any, map: any) => {
+    console.log(`Key: ${k}, Value: ${v}`);
+  });
 }
 
 function block_read_thread(channel: any, id: ThreadId) {
@@ -392,7 +399,7 @@ const compile_comp = {
     compile(channel_size, ce)
 
     const [buffered_type, type] = comp.inits[0].type.split(', ')
-    const is_buffered = buffered_type === 'buffered' ? 1 : 0
+    const is_unbuffered = buffered_type === 'unbuffered' ? 1 : 0
     const channel_type =
       type in channel_type_to_int
         ? channel_type_to_int[type]
@@ -401,7 +408,7 @@ const compile_comp = {
     instrs[wc++] = {
       tag: 'NEW_CHAN',
       type: channel_type,
-      is_buffered
+      is_unbuffered
     }
     instrs[wc++] = {
       tag: 'ASSIGN',
@@ -596,8 +603,9 @@ const microcode = {
     delete_thread()
   },
   NEW_CHAN: (instr: any) => {
-    const allocated_len = OS.pop()
-    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_buffered)
+    const len_addr = OS.pop()
+    const allocated_len = heap.address_to_JS_value(len_addr)
+    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_unbuffered)
     push(OS, frame_address)
   },
   CHAN_WRITE: (instr: any) => {
@@ -619,7 +627,6 @@ const microcode = {
 
     // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
-    console.log(is_full)
 
     // block thread if full
     if (is_full) {
@@ -633,6 +640,9 @@ const microcode = {
     // else write item in channel
     heap.heap_Channel_write(channel, item)
 
+    // unblock any random thread waiting to read from channel
+    unblock_read_thread(channel)
+
     // if is unbuffered channel, block thread
     const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
     if (is_unbuffered_channel) {
@@ -641,9 +651,6 @@ const microcode = {
       next_thread()
       return
     }
-
-    // unblock any random thread waiting to read from channel
-    unblock_read_thread(channel)
   },
   CHAN_READ: (instr: any) => {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
@@ -665,15 +672,6 @@ const microcode = {
 
     // push to OS
     push(OS, item)
-
-    // if is unbuffered channel, block thread
-    const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
-    if (is_unbuffered_channel) {
-      block_read_thread(channel, curr_thread)
-      block_thread()
-      next_thread()
-      return
-    }
 
     // unblock any random thread waiting to write to channel
     unblock_write_thread(channel)
@@ -697,7 +695,6 @@ function delete_thread() {
 
 function next_thread() {
   detect_deadlock()
-
   ;[curr_thread, TO] = scheduler.selectNextThread()!
   // Load thread state
   ;[OS, PC, E, RTS] = threads.get(curr_thread)!

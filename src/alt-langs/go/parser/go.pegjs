@@ -160,6 +160,9 @@ Types
   / UIntToken
   / ByteToken
   / FloatToken
+  / ChanBooleanToken
+  / ChanIntToken
+  / ChanStringToken
   
 FutureReservedWord
   = ConstToken
@@ -423,6 +426,9 @@ UIntToken       = "uint"                  !IdentifierPart
 ByteToken       = "byte"                  !IdentifierPart
 FloatToken      = ("float32" / "float64") !IdentifierPart
 WaitGroupToken  = "WaitGroup"             !IdentifierPart
+ChanBooleanToken  = "chan boolean"        !IdentifierPart
+ChanIntToken      = "chan int"            !IdentifierPart
+ChanStringToken   = "chan string"         !IdentifierPart
 
 // Skipped
 
