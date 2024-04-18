@@ -163,6 +163,7 @@ Types
   / ChanBooleanToken
   / ChanIntToken
   / ChanStringToken
+  / WaitGroupToken
   
 FutureReservedWord
   = ConstToken
