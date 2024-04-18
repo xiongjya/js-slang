@@ -45,8 +45,8 @@ function unblock_write_thread(address: any) {
 function print_map(comment: string, ls: any) {
   console.log(comment)
   ls.forEach((v: any, k: any, map: any) => {
-    console.log(`Key: ${k}, Value: ${v}`);
-  });
+    console.log(`Key: ${k}, Value: ${v}`)
+  })
 }
 
 function block_read_thread(channel: any, id: ThreadId) {
