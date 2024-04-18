@@ -653,8 +653,7 @@ const microcode = {
     if (is_full) {
       PC--
       block_write_thread(channel, curr_thread)
-      block_thread()
-      next_thread()
+      BLOCKING = true;
       return
     }
 
@@ -668,8 +667,7 @@ const microcode = {
     const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
     if (is_unbuffered_channel) {
       block_write_thread(channel, curr_thread)
-      block_thread()
-      next_thread()
+      BLOCKING = true;
       return
     }
   },
@@ -683,8 +681,7 @@ const microcode = {
     if (is_empty) {
       PC--
       block_read_thread(channel, curr_thread)
-      block_thread()
-      next_thread()
+      BLOCKING = true;
       return
     }
 
