@@ -391,7 +391,7 @@ const compile_comp = {
     const channel_size = comp.inits[0].len
     compile(channel_size, ce)
 
-    const [buffered_type, type] = (comp.inits[0].type).split(', ')
+    const [buffered_type, type] = comp.inits[0].type.split(', ')
     const is_buffered = buffered_type === 'buffered' ? 1 : 0
     const channel_type =
       type in channel_type_to_int
@@ -417,10 +417,10 @@ const compile_comp = {
       pos: compile_time_environment_position(ce, comp.left.name)
     }
   },
-  ChannelReceieveExpression: (comp: any, ce: any) => {
+  ChannelReceiveExpression: (comp: any, ce: any) => {
     instrs[wc++] = {
       tag: 'CHAN_READ',
-      pos: compile_time_environment_position(ce, comp.left.name)
+      pos: compile_time_environment_position(ce, comp.right.name)
     }
   },
   EmptyStatement: (comp: any, ce: any) => {}
@@ -601,8 +601,8 @@ const microcode = {
     push(OS, frame_address)
   },
   CHAN_WRITE: (instr: any) => {
-    const channel = instr.pos
-    const item = OS.pop()
+    const channel = heap.heap_get_Environment_value(E, instr.pos)
+    const item = peek(OS, 0)
 
     // check item type
     const item_type = heap.is_Number(item)
@@ -614,17 +614,20 @@ const microcode = {
       : -1
     const channel_type = heap.heap_get_Channel_type(channel)
     if (item_type !== channel_type) {
-      return error('error inserting item into channel: mismatched types')
+      error('error inserting item into channel: mismatched types')
     }
 
     // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
+    console.log(is_full)
 
     // block thread if full
     if (is_full) {
       PC--
       block_write_thread(channel, curr_thread)
       block_thread()
+      next_thread()
+      return
     }
 
     // else write item in channel
@@ -635,13 +638,15 @@ const microcode = {
     if (is_unbuffered_channel) {
       block_write_thread(channel, curr_thread)
       block_thread()
+      next_thread()
+      return
     }
 
     // unblock any random thread waiting to read from channel
     unblock_read_thread(channel)
   },
   CHAN_READ: (instr: any) => {
-    const channel = instr.pos
+    const channel = heap.heap_get_Environment_value(E, instr.pos)
 
     // check if channel is empty
     const is_empty = heap.heap_is_Channel_empty(channel)
@@ -651,6 +656,8 @@ const microcode = {
       PC--
       block_read_thread(channel, curr_thread)
       block_thread()
+      next_thread()
+      return
     }
 
     // else read item from channel
@@ -664,6 +671,8 @@ const microcode = {
     if (is_unbuffered_channel) {
       block_read_thread(channel, curr_thread)
       block_thread()
+      next_thread()
+      return
     }
 
     // unblock any random thread waiting to write to channel
@@ -687,6 +696,8 @@ function delete_thread() {
 }
 
 function next_thread() {
+  detect_deadlock()
+
   ;[curr_thread, TO] = scheduler.selectNextThread()!
   // Load thread state
   ;[OS, PC, E, RTS] = threads.get(curr_thread)!
@@ -706,6 +717,12 @@ function block_thread() {
 
   // Block thread in scheduler
   scheduler.blockThread(curr_thread)
+}
+
+function detect_deadlock() {
+  if (!scheduler.hasIdleThreads() && scheduler.hasBlockedThreads()) {
+    error('fatal error: all goroutines are asleep - deadlock!')
+  }
 }
 
 // Initialize the scheduler (do this before running code)

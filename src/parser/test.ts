@@ -20,6 +20,7 @@ x;
 
 const program = `
 var x chan int = make(chan int);
+y := <- x
 `
 function main() {
   const variant = Variant.CONCURRENT

@@ -53,6 +53,10 @@ export class Scheduler {
     this._idleThreads.push(id)
   }
 
+  hasBlockedThreads(): boolean {
+    return this._blockedThreads.size > 0
+  }
+
   hasIdleThreads(): boolean {
     return this._idleThreads.length > 0
   }
