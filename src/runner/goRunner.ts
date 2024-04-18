@@ -67,7 +67,7 @@ const value_index = (frame: any, x: any) => {
 // to save the creation of an intermediate
 // argument array
 const builtin_object = {
-  display: () => {
+  Println: () => {
     const address = OS.pop()
     console.log(heap.address_to_JS_value(address))
     return address
@@ -344,7 +344,7 @@ const compile_comp = {
       {
         type: 'ConstDeclaration',
         ids: [{ type: 'Identifier', name: comp.id.name }],
-        inits: [{ type: 'lam', prms: comp.params, body: comp.body }]
+        inits: [{ type: 'lam', prms: comp.params.map((x: any) => x.ids[0].name), body: comp.body }]
       },
       ce
     )
