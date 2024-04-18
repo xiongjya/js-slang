@@ -96,12 +96,6 @@ const wrap_in_block = (program: any) => ({
   body: [program]
 })
 
-const channel_type_to_int = {
-  int: 1,
-  bool: 2,
-  string: 3
-}
-
 /* ************************
  * compile-time environment
  * ************************/
@@ -204,9 +198,7 @@ const global_compile_environment = [global_compile_frame]
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (
-    ['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)
-  ) {
+  } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
     return [comp.id.name]

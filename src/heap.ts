@@ -223,7 +223,7 @@ export default class Heap {
   }
 
   // channel:
-  // [1 byte tag, 1 byte is_unbuffered, 
+  // [1 byte tag, 1 byte is_unbuffered,
   //  3 bytes unused,
   //  2 bytes #children, 1 byte mutex]
   // Note: #children is 0
