@@ -611,6 +611,8 @@ ArgumentList
 
 LeftHandSideExpression
   = GoRoutineExpression
+  / ChannelExpression
+  / ChannelReceiveExpression
   / CallExpression
   / NewExpression
 
@@ -845,7 +847,6 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
-  / ChannelReceiveExpression
 
 AssignmentExpressionNoIn
   = left:LeftHandSideExpression __
@@ -914,7 +915,6 @@ Statement
   = Block
   / ConstantStatement
   / VariableStatement
-  / ChannelStatement
   / ShortVariableStatement
   / EmptyStatement
   / ChannelSendStatement
@@ -955,41 +955,11 @@ VariableStatement
       };
     }
 
-ChannelStatement
-  = VarToken __ declarations:ChannelSpecification EOS {
-      return {
-        type: "ChannelDeclaration",
-        kind: "var",
-        ...declarations
-      }
-    }
-  / id:IdentifierList __ ":=" __ init:(ChannelExpression) EOS {
-      return {
-        type: "ChannelDeclaration",
-        kind: "var",
-        ids: id,
-        inits: init
-      }
-    }
-
-ChannelSpecification
-  = id:IdentifierList __ ChanToken __ type:(Types) __ init:(__ ChannelInitialiser) {
-      return {
-        ids: id,
-        inits: [extractOptional(init, 1)],
-        chanType: type[0],
-      }
-    }
-
-ChannelInitialiser
-  = "=" !"=" __ expression:ChannelExpression {
-      return expression; 
-    }
-
 ChannelExpression
-  = MakeToken "(" ChanToken __ type:Types ")" {
+  = MakeToken "(" ChanToken ")" {
       return {
-        type: `unbuffered, ${type[0]}`,
+        type: 'ChannelExpression',
+        chantype: 'unbuffered',
         len: {
           type: 'Literal',
           value: 1
@@ -999,19 +969,19 @@ ChannelExpression
   / ChannelExpressionWithSize
 
 ChannelExpressionWithSize
-  = MakeToken "(" ChanToken __ type:Types "," __ len:NumericLiteral ")" {
+  = MakeToken "(" ChanToken "," __ len:NumericLiteral ")" {
       return {
-        type: `buffered, ${type[0]}`,
+        type: 'ChannelExpression',
+        chantype: 'buffered',
         len: len
       };
     }
 
 DeclarationTypeSpecification
-  = ids:IdentifierList __ type:(Types) init:(__ InitialiserList)? {
+  = ids:IdentifierList init:(__ InitialiserList)? {
 	  return {
         ids: ids,
-        inits: extractOptional(init, 1),
-        vartype: type[0]
+        inits: extractOptional(init, 1)
       }
     }
 
@@ -1204,15 +1174,14 @@ LabelledStatement
 
 FunctionDeclaration
   = FunctionToken __ id:Identifier __
-    "(" __ params:(FormalParameterList __)? ")" __ type:(Types)? __
+    "(" __ params:(FormalParameterList __)? ")" __
     "{" __ body:FunctionBody __ "}"
     {
       return {
         type: "FunctionDeclaration",
         id: id,
         params: optionalList(extractOptional(params, 0)),
-        body: body,
-        rtype: extractOptional(type, 0)
+        body: body
       };
     }
 

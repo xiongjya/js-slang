@@ -205,7 +205,7 @@ function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
   } else if (
-    ['ConstDeclaration', 'VariableDeclaration', 'ChannelDeclaration'].includes(comp.type)
+    ['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)
   ) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
@@ -414,25 +414,16 @@ const compile_comp = {
       ce
     )
   },
-  ChannelDeclaration: (comp: any, ce: any) => {
-    const channel_size = comp.inits[0].len
+  ChannelExpression: (comp: any, ce: any) => {
+    const channel_size = comp.len
     compile(channel_size, ce)
 
-    const [buffered_type, type] = comp.inits[0].type.split(', ')
+    const buffered_type = comp.chantype
     const is_unbuffered = buffered_type === 'unbuffered' ? 1 : 0
-    const channel_type =
-      type in channel_type_to_int
-        ? channel_type_to_int[type]
-        : error(`unable to create a channel of type ${type}`)
 
     instrs[wc++] = {
       tag: 'NEW_CHAN',
-      type: channel_type,
       is_unbuffered
-    }
-    instrs[wc++] = {
-      tag: 'ASSIGN',
-      pos: compile_time_environment_position(ce, comp.ids[0].name)
     }
   },
   ChannelSendStatement: (comp: any, ce: any) => {
@@ -626,25 +617,12 @@ const microcode = {
   NEW_CHAN: (instr: any) => {
     const len_addr = OS.pop()
     const allocated_len = heap.address_to_JS_value(len_addr)
-    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_unbuffered)
+    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.is_unbuffered)
     push(OS, frame_address)
   },
   CHAN_WRITE: (instr: any) => {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
     const item = peek(OS, 0)
-
-    // check item type
-    const item_type = heap.is_Number(item)
-      ? 1
-      : heap.is_Boolean(item)
-      ? 2
-      : heap.is_String(item)
-      ? 3
-      : -1
-    const channel_type = heap.heap_get_Channel_type(channel)
-    if (item_type !== channel_type) {
-      error('error inserting item into channel: mismatched types')
-    }
 
     // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
@@ -801,6 +779,10 @@ function run() {
 }
 
 export async function goRunner(program: any): Promise<Result> {
+  if (program === null) {
+    error('there is a parsing error with the program input')
+  }
+
   compile_program(wrap_in_block(program))
   const result: any = run()
   console.log('result: ', result)

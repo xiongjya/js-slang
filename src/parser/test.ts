@@ -57,11 +57,15 @@ x;
 */
 
 const program = `
-var x chan int = make(chan int);
+const a = 10;
+b := 20;
+var x = make(chan);
 
-func f(c chan int) {
-  c <- 10;
+func f(x) {
+  x <- 'hello';
   Println("am i blocked");
+  Println(b);
+  Println(a);
 }
 
 for var i = 0; i < 5; i = i + 1 {
@@ -70,6 +74,7 @@ for var i = 0; i < 5; i = i + 1 {
   Println(y);
 }
 `
+
 function main() {
   const variant = Variant.CONCURRENT
   const context = createContext(Chapter.GO_1, variant, undefined, undefined)
