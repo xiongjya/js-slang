@@ -16,6 +16,61 @@ const threads: Map<ThreadId, Thread> = new Map()
 const waitgroups: Map<string, WaitGroup> = new Map()
 let curr_thread: ThreadId = -1
 
+// blocked threads due to channel
+// waiting to read
+const channel_read_block_threads: Map<any, ThreadId[]> = new Map()
+// waiting to write
+const channel_write_block_threads: Map<any, ThreadId[]> = new Map()
+
+function unblock_read_thread(address: any) {
+  const blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
+
+  if (blocked_threads !== undefined) {
+    const next_thread: ThreadId | undefined = blocked_threads.shift()
+    if (next_thread !== undefined) {
+      scheduler.unblockThread(next_thread)
+    }
+  }
+}
+
+function unblock_write_thread(address: any) {
+  const blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
+
+  if (blocked_threads !== undefined) {
+    const next_thread: ThreadId | undefined = blocked_threads.shift()
+    if (next_thread !== undefined) {
+      scheduler.unblockThread(next_thread)
+    }
+  }
+}
+
+function print_map(comment: string, ls: any) {
+  console.log(comment)
+  ls.forEach((v: any, k: any, map: any) => {
+    console.log(`Key: ${k}, Value: ${v}`)
+  })
+}
+
+function block_read_thread(channel: any, id: ThreadId) {
+  let blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(channel)
+
+  if (!blocked_threads) {
+    blocked_threads = []
+  }
+  blocked_threads.push(id)
+  channel_read_block_threads.set(channel, blocked_threads)
+}
+
+function block_write_thread(channel: any, id: ThreadId) {
+  let blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(channel)
+
+  if (!blocked_threads) {
+    blocked_threads = []
+  }
+  blocked_threads.push(id)
+  channel_write_block_threads.set(channel, blocked_threads)
+}
+
 // helper functions
 const peek = (array: any[], address: any) => array.slice(-1 - address)[0]
 
@@ -30,7 +85,9 @@ function arity<T extends Function>(x: T): number {
   return x.length
 }
 
-const error = (...x: any) => new Error(x)
+const error = (...x: any) => {
+  throw new Error(x)
+}
 
 const get_time = () => Date.now()
 
@@ -38,6 +95,12 @@ const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
   body: [program]
 })
+
+const channel_type_to_int = {
+  int: 1,
+  bool: 2,
+  string: 3
+}
 
 /* ************************
  * compile-time environment
@@ -141,7 +204,9 @@ const global_compile_environment = [global_compile_frame]
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
+  } else if (
+    ['ConstDeclaration', 'VariableDeclaration', 'ChannelDeclaration'].includes(comp.type)
+  ) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
     return [comp.id.name]
@@ -349,6 +414,42 @@ const compile_comp = {
       ce
     )
   },
+  ChannelDeclaration: (comp: any, ce: any) => {
+    const channel_size = comp.inits[0].len
+    compile(channel_size, ce)
+
+    const [buffered_type, type] = comp.inits[0].type.split(', ')
+    const is_unbuffered = buffered_type === 'unbuffered' ? 1 : 0
+    const channel_type =
+      type in channel_type_to_int
+        ? channel_type_to_int[type]
+        : error(`unable to create a channel of type ${type}`)
+
+    instrs[wc++] = {
+      tag: 'NEW_CHAN',
+      type: channel_type,
+      is_unbuffered
+    }
+    instrs[wc++] = {
+      tag: 'ASSIGN',
+      pos: compile_time_environment_position(ce, comp.ids[0].name)
+    }
+  },
+  ChannelSendStatement: (comp: any, ce: any) => {
+    // compile the item being sent
+    compile(comp.right, ce)
+
+    instrs[wc++] = {
+      tag: 'CHAN_WRITE',
+      pos: compile_time_environment_position(ce, comp.left.name)
+    }
+  },
+  ChannelReceiveExpression: (comp: any, ce: any) => {
+    instrs[wc++] = {
+      tag: 'CHAN_READ',
+      pos: compile_time_environment_position(ce, comp.right.name)
+    }
+  },
   EmptyStatement: (comp: any, ce: any) => {}
 }
 
@@ -522,6 +623,80 @@ const microcode = {
   GO_END: (instr: any) => {
     delete_thread()
   },
+  NEW_CHAN: (instr: any) => {
+    const len_addr = OS.pop()
+    const allocated_len = heap.address_to_JS_value(len_addr)
+    const frame_address = heap.heap_allocate_Channel(allocated_len, instr.type, instr.is_unbuffered)
+    push(OS, frame_address)
+  },
+  CHAN_WRITE: (instr: any) => {
+    const channel = heap.heap_get_Environment_value(E, instr.pos)
+    const item = peek(OS, 0)
+
+    // check item type
+    const item_type = heap.is_Number(item)
+      ? 1
+      : heap.is_Boolean(item)
+      ? 2
+      : heap.is_String(item)
+      ? 3
+      : -1
+    const channel_type = heap.heap_get_Channel_type(channel)
+    if (item_type !== channel_type) {
+      error('error inserting item into channel: mismatched types')
+    }
+
+    // check if channel is full
+    const is_full = heap.heap_is_Channel_full(channel)
+
+    // block thread if full
+    if (is_full) {
+      PC--
+      block_write_thread(channel, curr_thread)
+      block_thread()
+      next_thread()
+      return
+    }
+
+    // else write item in channel
+    heap.heap_Channel_write(channel, item)
+
+    // unblock any random thread waiting to read from channel
+    unblock_read_thread(channel)
+
+    // if is unbuffered channel, block thread
+    const is_unbuffered_channel = heap.is_Unbuffered_Channel(channel)
+    if (is_unbuffered_channel) {
+      block_write_thread(channel, curr_thread)
+      block_thread()
+      next_thread()
+      return
+    }
+  },
+  CHAN_READ: (instr: any) => {
+    const channel = heap.heap_get_Environment_value(E, instr.pos)
+
+    // check if channel is empty
+    const is_empty = heap.heap_is_Channel_empty(channel)
+
+    // block thread if empty
+    if (is_empty) {
+      PC--
+      block_read_thread(channel, curr_thread)
+      block_thread()
+      next_thread()
+      return
+    }
+
+    // else read item from channel
+    const item = heap.heap_Channel_read(channel)
+
+    // push to OS
+    push(OS, item)
+
+    // unblock any random thread waiting to write to channel
+    unblock_write_thread(channel)
+  },
   WG_ADD: (instr: any) => {
     let delta = OS.pop()
     delta = delta === -1 ? delta : heap.address_to_JS_value(delta) // hacky haha
@@ -557,6 +732,7 @@ function delete_thread() {
 }
 
 function next_thread() {
+  detect_deadlock()
   ;[curr_thread, TO] = scheduler.selectNextThread()!
   // Load thread state
   ;[OS, PC, E, RTS] = threads.get(curr_thread)!
@@ -577,6 +753,12 @@ function block_thread() {
 
   // Block thread in scheduler
   scheduler.blockThread(curr_thread)
+}
+
+function detect_deadlock() {
+  if (!scheduler.hasIdleThreads() && scheduler.hasBlockedThreads()) {
+    error('fatal error: all goroutines are asleep - deadlock!')
+  }
 }
 
 // Initialize the scheduler (do this before running code)

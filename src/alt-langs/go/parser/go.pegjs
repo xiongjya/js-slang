@@ -151,7 +151,6 @@ Keyword
   / IfToken
   / NewToken
   / ReturnToken
-  / SwitchToken
   / VarToken
 
 Types
@@ -161,6 +160,9 @@ Types
   / UIntToken
   / ByteToken
   / FloatToken
+  / ChanBooleanToken
+  / ChanIntToken
+  / ChanStringToken
   / WaitGroupToken
   
 FutureReservedWord
@@ -404,6 +406,7 @@ GoToken         = "go"         !IdentifierPart
 GotoToken       = "goto"       !IdentifierPart
 IfToken         = "if"         !IdentifierPart
 ImportToken     = "import"     !IdentifierPart
+MakeToken       = "make"       !IdentifierPart
 NewToken        = "new"        !IdentifierPart
 NilToken        = "nil"        !IdentifierPart
 RangeToken      = "range"      !IdentifierPart
@@ -424,6 +427,9 @@ UIntToken       = "uint"                  !IdentifierPart
 ByteToken       = "byte"                  !IdentifierPart
 FloatToken      = ("float32" / "float64") !IdentifierPart
 WaitGroupToken  = "WaitGroup"             !IdentifierPart
+ChanBooleanToken  = "chan boolean"        !IdentifierPart
+ChanIntToken      = "chan int"            !IdentifierPart
+ChanStringToken   = "chan string"         !IdentifierPart
 
 // Skipped
 
@@ -839,6 +845,7 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
+  / ChannelReceiveExpression
 
 AssignmentExpressionNoIn
   = left:LeftHandSideExpression __
@@ -864,6 +871,14 @@ AssignmentExpressionNoIn
       };
     }
   / ConditionalExpressionNoIn
+
+ChannelReceiveExpression
+  = "<-" __ right:Identifier {
+      return {
+        type: "ChannelReceiveExpression",
+        right: right
+      }
+    }
 
 AssignmentOperator
   = "**="
@@ -899,8 +914,10 @@ Statement
   = Block
   / ConstantStatement
   / VariableStatement
+  / ChannelStatement
   / ShortVariableStatement
   / EmptyStatement
+  / ChannelSendStatement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
@@ -908,7 +925,6 @@ Statement
   / BreakStatement
   / ReturnStatement
   / LabelledStatement
-  / SwitchStatement
 
 Block
   = "{" __ body:(StatementList __)? "}" {
@@ -936,6 +952,57 @@ VariableStatement
         type: "VariableDeclaration",
         kind: "var",
         ...declarations
+      };
+    }
+
+ChannelStatement
+  = VarToken __ declarations:ChannelSpecification EOS {
+      return {
+        type: "ChannelDeclaration",
+        kind: "var",
+        ...declarations
+      }
+    }
+  / id:IdentifierList __ ":=" __ init:(ChannelExpression) EOS {
+      return {
+        type: "ChannelDeclaration",
+        kind: "var",
+        ids: id,
+        inits: init
+      }
+    }
+
+ChannelSpecification
+  = id:IdentifierList __ ChanToken __ type:(Types) __ init:(__ ChannelInitialiser) {
+      return {
+        ids: id,
+        inits: [extractOptional(init, 1)],
+        chanType: type[0],
+      }
+    }
+
+ChannelInitialiser
+  = "=" !"=" __ expression:ChannelExpression {
+      return expression; 
+    }
+
+ChannelExpression
+  = MakeToken "(" ChanToken __ type:Types ")" {
+      return {
+        type: `unbuffered, ${type[0]}`,
+        len: {
+          type: 'Literal',
+          value: 1
+        }
+      };
+    }
+  / ChannelExpressionWithSize
+
+ChannelExpressionWithSize
+  = MakeToken "(" ChanToken __ type:Types "," __ len:NumericLiteral ")" {
+      return {
+        type: `buffered, ${type[0]}`,
+        len: len
       };
     }
 
@@ -1022,6 +1089,16 @@ InitialiserNoIn
 
 EmptyStatement
   = ";" { return { type: "EmptyStatement" }; }
+
+ChannelSendStatement
+  = left:Identifier __ "<-" __ right:AssignmentExpression {
+      return {
+        type: "ChannelSendStatement",
+        operator: "<-",
+        left: left,
+        right: right
+      }
+    }
 
 ExpressionStatement
   = !("{" / FunctionToken) expression:Expression EOS {
@@ -1116,52 +1193,6 @@ ReturnStatement
     }
   / ReturnToken _ argument:Expression EOS {
       return { type: "ReturnStatement", argument: argument };
-    }
-
-SwitchStatement
-  = SwitchToken __ "(" __ discriminant:Expression __ ")" __
-    cases:CaseBlock
-    {
-      return {
-        type: "SwitchStatement",
-        discriminant: discriminant,
-        cases: cases
-      };
-    }
-
-CaseBlock
-  = "{" __ clauses:(CaseClauses __)? "}" {
-      return optionalList(extractOptional(clauses, 0));
-    }
-  / "{" __
-    before:(CaseClauses __)?
-    default_:DefaultClause __
-    after:(CaseClauses __)? "}"
-    {
-      return optionalList(extractOptional(before, 0))
-        .concat(default_)
-        .concat(optionalList(extractOptional(after, 0)));
-    }
-
-CaseClauses
-  = head:CaseClause tail:(__ CaseClause)* { return buildList(head, tail, 1); }
-
-CaseClause
-  = CaseToken __ test:Expression __ ":" consequent:(__ StatementList)? {
-      return {
-        type: "SwitchCase",
-        test: test,
-        consequent: optionalList(extractOptional(consequent, 1))
-      };
-    }
-
-DefaultClause
-  = DefaultToken __ ":" consequent:(__ StatementList)? {
-      return {
-        type: "SwitchCase",
-        test: null,
-        consequent: optionalList(extractOptional(consequent, 1))
-      };
     }
 
 LabelledStatement

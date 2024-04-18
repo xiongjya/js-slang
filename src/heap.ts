@@ -38,6 +38,7 @@ export default class Heap {
   static Pair_tag = 11
   static Builtin_tag = 12
   static String_tag = 13 // ADDED CHANGE
+  static Channel_tag = 14
 
   static heap_make(bytes: any): DataView {
     const data = new ArrayBuffer(bytes)
@@ -219,6 +220,109 @@ export default class Heap {
 
   heap_get_string(address: any) {
     return this.stringPool[this.heap_get_string_hash(address)][1]
+  }
+
+  // channel:
+  // [1 byte tag, 1 byte type,
+  //  1 byte unbuffered, 2 bytes unused,
+  //  2 bytes #children, 1 byte mutex]
+  // Note: #children is 0
+  // Additional 4 slots: channel information, channel size, channel write pointer, channel read pointer
+  is_Channel(address: any) {
+    return this.heap_get_tag(address) === Heap.Channel_tag
+  }
+
+  is_Buffered_Channel(address: any) {
+    return this.heap_get_byte_at_offset(address, 2) === 0
+  }
+
+  is_Unbuffered_Channel(address: any) {
+    return this.heap_get_byte_at_offset(address, 2) === 1
+  }
+
+  // n slots: each store address of channel
+  heap_allocate_Channel(size: number, type: number, is_buffered: boolean) {
+    const chan_size = size + 4
+    const address = this.heap_allocate(Heap.Channel_tag, chan_size)
+
+    // information about the channel
+    this.heap_set_byte_at_offset(address, 1, type)
+    this.heap_set_byte_at_offset(address, 2, is_buffered)
+    this.heap_set(address + 1, size)
+
+    // write pointer
+    this.heap_set(address + 2, 0)
+    // read pointer
+    this.heap_set(address + 3, 0)
+
+    // empty the slots
+    for (let i = 0; i < size; i++) {
+      this.heap_set(address + 4 + i, 0)
+    }
+
+    return address
+  }
+
+  heap_get_Channel_type(address: any) {
+    return this.heap_get_byte_at_offset(address, 1)
+  }
+
+  heap_is_Channel_empty(address: any) {
+    // get read pointer
+    const read_ptr = this.heap_get(address + 3)
+
+    // check if space is occupied
+    return this.heap_get(address + 4 + read_ptr) === 0
+  }
+
+  heap_is_Channel_full(address: any) {
+    // get write pointer
+    const write_ptr = this.heap_get(address + 2)
+
+    // check if space is occupied
+    return this.heap_get(address + 4 + write_ptr) !== 0
+  }
+
+  heap_Channel_read(address: any) {
+    // get item from read pointer
+    let read_ptr = this.heap_get(address + 3)
+    const item = this.heap_get(address + 4 + read_ptr)
+
+    // clear what read pointer points to
+    this.heap_set(address + 4 + read_ptr, 0)
+
+    // increment read pointer
+    const channel_size = this.heap_get(address + 1)
+    read_ptr = (read_ptr + 1) % channel_size
+    this.heap_set(address + 3, read_ptr)
+
+    return item
+  }
+
+  heap_Channel_write(address: any, item: any) {
+    // assign to write pointer
+    let write_ptr = this.heap_get(address + 2)
+    this.heap_set(address + 4 + write_ptr, item)
+
+    // increment write pointer
+    const channel_size = this.heap_get(address + 1)
+    write_ptr = (write_ptr + 1) % channel_size
+    this.heap_set(address + 2, write_ptr)
+  }
+
+  heap_Channel_print(address: any) {
+    const channel_size = this.heap_get(address + 1)
+
+    for (let i = 0; i < channel_size; i++) {
+      const addr = this.heap_get(address + 4 + i)
+
+      if (addr !== 0) {
+        const item = this.address_to_JS_value(addr)
+        console.log(item)
+      } else {
+        console.log(0)
+      }
+    }
   }
 
   // builtins: builtin id is encoded in second byte
@@ -447,6 +551,8 @@ export default class Heap {
       ? '<closure>'
       : this.is_Builtin(x)
       ? '<builtin>'
+      : this.is_Channel(x)
+      ? '<channel>'
       : 'unknown word tag: ' + Heap.word_to_string(x)
   }
 
