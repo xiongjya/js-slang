@@ -324,7 +324,7 @@ const compile_comp = {
       {
         type: 'ConstDeclaration',
         ids: [{ type: 'Identifier', name: comp.id.name }],
-        inits: [{ type: 'lam', prms: comp.params, body: comp.body }]
+        inits: [{ type: 'lam', prms: comp.params.map((x: any) => x.ids[0].name), body: comp.body }]
       },
       ce
     )
