@@ -1,6 +1,7 @@
 import Heap from '../heap'
 import { Scheduler, ThreadId } from '../scheduler'
 import { Finished, Result } from '../types'
+import WaitGroup from '../waitgroup'
 
 type Thread = [
   any[], // OS
@@ -12,6 +13,7 @@ type Thread = [
 const heap = new Heap()
 let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
+const waitgroups: Map<string, WaitGroup> = new Map()
 let curr_thread: ThreadId = -1
 
 // helper functions
@@ -232,17 +234,32 @@ const compile_comp = {
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
   CallExpression: (comp: any, ce: any) => {
-    compile(
-      {
-        type: 'Identifier',
-        name: comp.callee.name
-      },
-      ce
-    )
+    if (comp.callee.type !== 'MemberExpression') {
+      compile(
+        {
+          type: 'Identifier',
+          name: comp.callee.name
+        },
+        ce
+      )
+    }
+
     for (let arg of comp.arguments) {
       compile(arg, ce)
     }
+
+    if (comp.callee.type === 'MemberExpression') {
+      return compile(comp.callee, ce)
+    }
     instrs[wc++] = { tag: 'CALL', arity: comp.arguments.length }
+  },
+  MemberExpression: (comp: any, ce: any) => {
+    if (['Add', 'Wait', 'Done'].includes(comp.property.name)) {
+      if (!waitgroups.has(comp.object.name)) {
+        throw new Error(`Cannot call ${comp.property.name} on non-WaitGroup`)
+      }
+      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, wg: comp.object.name }
+    }
   },
   GoRoutine: (comp: any, ce: any) => {
     comp.type = 'CallExpression'
@@ -291,8 +308,11 @@ const compile_comp = {
     instrs[wc++] = { tag: 'EXIT_SCOPE' }
   },
   VariableDeclaration: (comp: any, ce: any) => {
+    if (comp.vartype === 'WaitGroup') {
+      for (let { name } of comp.ids) waitgroups.set(name, new WaitGroup())
+      return
+    }
     if (!comp.inits) return
-
     for (let i = 0; i < comp.inits.length; i++) {
       compile(comp.inits[i], ce)
       instrs[wc++] = {
@@ -420,6 +440,7 @@ let PC: number // JS number
 let E: number // heap Address
 let RTS: any // JS array (stack) of Addresses
 let TO: number // timeout counter
+let BLOCKING: boolean // current thread is blocking
 
 const microcode = {
   LDC: (instr: any) => push(OS, heap.JS_value_to_address(instr.val)),
@@ -500,6 +521,23 @@ const microcode = {
   },
   GO_END: (instr: any) => {
     delete_thread()
+  },
+  WG_ADD: (instr: any) => {
+    let delta = OS.pop()
+    delta = delta === -1 ? delta : heap.address_to_JS_value(delta) // hacky haha
+    const wg = waitgroups.get(instr.wg)
+    if (wg) {
+      for (let thread of wg.Add(delta)) {
+        scheduler.unblockThread(thread)
+      }
+    }
+  },
+  WG_WAIT: (instr: any) => {
+    BLOCKING = !waitgroups.get(instr.wg)?.Try_Wait(curr_thread)
+  },
+  WG_DONE: (instr: any) => {
+    OS.push(-1)
+    microcode.WG_ADD(instr)
   }
 }
 
@@ -522,6 +560,7 @@ function next_thread() {
   ;[curr_thread, TO] = scheduler.selectNextThread()!
   // Load thread state
   ;[OS, PC, E, RTS] = threads.get(curr_thread)!
+  BLOCKING = false
 }
 
 function pause_thread() {
@@ -532,13 +571,13 @@ function pause_thread() {
   scheduler.pauseThread(curr_thread)
 }
 
-// function block_thread() {
-//   // Save state to threads map
-//   threads.set(curr_thread, [OS, PC, E, RTS])
+function block_thread() {
+  // Save state to threads map
+  threads.set(curr_thread, [OS, PC, E, RTS])
 
-//   // Block thread in scheduler
-//   scheduler.blockThread(curr_thread)
-// }
+  // Block thread in scheduler
+  scheduler.blockThread(curr_thread)
+}
 
 // Initialize the scheduler (do this before running code)
 function init_scheduler() {
@@ -561,7 +600,10 @@ function run() {
       if (!scheduler.hasIdleThreads()) break
       next_thread()
     }
-    if (TO <= 0 && scheduler.hasIdleThreads()) {
+    if (BLOCKING) {
+      block_thread()
+      next_thread()
+    } else if (TO <= 0 && scheduler.hasIdleThreads()) {
       pause_thread()
       next_thread()
     }
