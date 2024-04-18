@@ -1,7 +1,7 @@
-import { parse } from "../parser/parser"
-import createContext from "../createContext"
-import { Chapter, Result, Variant } from "../types"
-import { goRunner } from "../runner/goRunner"
+import { parse } from '../parser/parser'
+import createContext from '../createContext'
+import { Chapter, Result, Variant } from '../types'
+import { goRunner } from '../runner/goRunner'
 
 function test_program(program: string) {
   const variant = Variant.CONCURRENT
@@ -16,11 +16,10 @@ test('Simple test', async () => {
     x := 3;
     x;
     `
-    const result: Result = await test_program(program)
-    expect(result.status).toBe("finished")
-    expect((result as any).value).toBe(3)
+  const result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(3)
 })
-
 
 test('Waitgroup', async () => {
   const no_wg_program: string = `
@@ -32,10 +31,10 @@ test('Waitgroup', async () => {
     go f();
     x;
     `
-    let result = await test_program(no_wg_program)
-    expect(result.status).toBe("finished")
-    expect((result as any).value).toBe(10)
-    const wg_program: string = `
+  let result = await test_program(no_wg_program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(10)
+  const wg_program: string = `
     x := 10;
     var wg WaitGroup;
     wg.Add(1);
@@ -48,11 +47,10 @@ test('Waitgroup', async () => {
     wg.Wait();
     x;
     `
-    result = await test_program(wg_program)
-    expect(result.status).toBe("finished")
-    expect((result as any).value).toBe(2)
+  result = await test_program(wg_program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(2)
 })
-
 
 test('Channel', async () => {
   const program: string = `
@@ -69,7 +67,7 @@ test('Channel', async () => {
     }
     y;
     `
-    let result = await test_program(program)
-    expect(result.status).toBe("finished")
-    expect((result as any).value).toBe(10)
+  let result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(10)
 })
