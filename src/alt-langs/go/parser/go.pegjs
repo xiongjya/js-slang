@@ -461,22 +461,6 @@ PrimaryExpression
   / Literal
   / "(" __ expression:Expression __ ")" { return expression; }
 
-ElementList
-  = head:(
-      elision:(Elision __)? element:AssignmentExpression {
-        return optionalList(extractOptional(elision, 0)).concat(element);
-      }
-    )
-    tail:(
-      __ "," __ elision:(Elision __)? element:AssignmentExpression {
-        return optionalList(extractOptional(elision, 0)).concat(element);
-      }
-    )*
-    { return Array.prototype.concat.apply(head, tail); }
-
-Elision
-  = "," commas:(__ ",")* { return filledArray(commas.length + 1, null); }
-
 MemberExpression
   = head:(
         PrimaryExpression
@@ -575,7 +559,6 @@ UnaryExpression
 
 UnaryOperator
   = $("-" !"=")
-  / "~"
   / "!"
 
 ExponentiationExpression
@@ -605,19 +588,9 @@ AdditiveOperator
   = $("+" ![+=])
   / $("-" ![-=])
 
-ShiftExpression
-  = head:AdditiveExpression
-    tail:(__ ShiftOperator __ AdditiveExpression)*
-    { return buildBinaryExpression(head, tail); }
-
-ShiftOperator
-  = $("<<"  !"=")
-  / $(">>>" !"=")
-  / $(">>"  !"=")
-
 RelationalExpression
-  = head:ShiftExpression
-    tail:(__ RelationalOperator __ ShiftExpression)*
+  = head:AdditiveExpression
+    tail:(__ RelationalOperator __ AdditiveExpression)*
     { return buildBinaryExpression(head, tail); }
 
 RelationalOperator
@@ -627,8 +600,8 @@ RelationalOperator
   / $(">" !">")
 
 RelationalExpressionNoIn
-  = head:ShiftExpression
-    tail:(__ RelationalOperatorNoIn __ ShiftExpression)*
+  = head:AdditiveExpression
+    tail:(__ RelationalOperatorNoIn __ AdditiveExpression)*
     { return buildBinaryExpression(head, tail); }
 
 RelationalOperatorNoIn
@@ -767,6 +740,8 @@ Statement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
+  / ContinueStatement
+  / BreakStatement
   / ReturnStatement
 
 Block
@@ -980,6 +955,22 @@ IterationStatement
           }
         ]
       };
+    }
+
+ContinueStatement
+  = ContinueToken EOS {
+      return { type: "ContinueStatement", label: null };
+    }
+  / ContinueToken _ label:Identifier EOS {
+      return { type: "ContinueStatement", label: label };
+    }
+
+BreakStatement
+  = BreakToken EOS {
+      return { type: "BreakStatement", label: null };
+    }
+  / BreakToken _ label:Identifier EOS {
+      return { type: "BreakStatement", label: label };
     }
 
 ReturnStatement
