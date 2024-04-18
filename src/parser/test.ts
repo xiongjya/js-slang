@@ -75,7 +75,7 @@ function main() {
   const context = createContext(Chapter.GO_1, variant, undefined, undefined)
 
   const parsed = parse(program, context)
-  goRunner(parsed)
+  goRunner(parsed, context)
 }
 
 main()

@@ -1,6 +1,6 @@
 import Heap from '../heap'
 import { Scheduler, ThreadId } from '../scheduler'
-import { Finished, Result } from '../types'
+import { Context, Finished, Result } from '../types'
 import WaitGroup from '../waitgroup'
 
 type Thread = [
@@ -44,12 +44,12 @@ function unblock_write_thread(address: any) {
   }
 }
 
-function print_map(comment: string, ls: any) {
-  console.log(comment)
-  ls.forEach((v: any, k: any, map: any) => {
-    console.log(`Key: ${k}, Value: ${v}`)
-  })
-}
+// function print_map(comment: string, ls: any) {
+//   console.log(comment)
+//   ls.forEach((v: any, k: any, map: any) => {
+//     console.log(`Key: ${k}, Value: ${v}`)
+//   })
+// }
 
 function block_read_thread(channel: any, id: ThreadId) {
   let blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(channel)
@@ -797,10 +797,10 @@ function run() {
   return heap.address_to_JS_value(peek(OS, 0))
 }
 
-export async function goRunner(program: any): Promise<Result> {
+export async function goRunner(program: any, context: Context): Promise<Result> {
   compile_program(wrap_in_block(program))
   const result: any = run()
-  console.log('result: ', result)
+  // console.log('result: ', result)
 
-  return Promise.resolve({ value: result } as Finished)
+  return Promise.resolve({ value: result, status: 'finished', context: context } as Finished)
 }
