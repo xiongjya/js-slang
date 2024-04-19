@@ -687,22 +687,22 @@ const microcode = {
   },
   BREAK: (instr: any) => {
     // continue popping till while instruction
-    while ((PC < instrs.length) && (instrs[PC].tag !== 'WHILE')) {
+    while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
       if (instrs[PC].tag === 'RESET') {
-          error("Break statement outside of while loop")
+        error('Break statement outside of while loop')
       }
       PC++
     }
     if (PC >= instrs.length) {
-      error("Break statement outside of while loop")
+      error('Break statement outside of while loop')
     }
   },
   CONTINUE: (instr: any) => {
-    while ((PC < instrs.length) && (instrs[PC].tag !== 'WHILE')) {
+    while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
       PC++
     }
     if (PC >= instrs.length) {
-      error("Continue statement outside of while loop")
+      error('Continue statement outside of while loop')
     }
     PC = instrs[PC].cont_addr
   },
