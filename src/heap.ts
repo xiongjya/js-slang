@@ -1,5 +1,3 @@
-const get_size = (x: any) => 0
-
 /* *************************
  * HEAP
  * *************************/
@@ -135,7 +133,7 @@ export default class Heap {
   // except for number nodes:
   //                 they have size 2 but no children
   heap_get_number_of_children(address: any): number {
-    return this.heap_get_tag(address) === Heap.Number_tag ? 0 : get_size(address) - 1
+    return this.heap_get_tag(address) === Heap.Number_tag ? 0 : this.heap_get_size(address) - 1
   }
 
   // access byte in heap, using address and offset
