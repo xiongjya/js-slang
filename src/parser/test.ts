@@ -87,7 +87,6 @@ for var i = 0; i < 10; i = i + 1 {
   x = x + y;
 }
 x;
-continue;
 `
 
 function main() {
