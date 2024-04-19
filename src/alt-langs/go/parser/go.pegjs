@@ -913,7 +913,9 @@ IfStatement
         type: "IfStatement",
         test: test,
         consequent: consequent,
-        alternate: null
+        alternate: { 
+          type: "EmptyStatement" 
+        }
       };
     }
 
@@ -925,16 +927,19 @@ IterationStatement
     body:Statement
     {
       return {
-        type: "seq",
-        stmts: [
-          extractOptional(init, 0),
-          {
-            type: "ForStatement",
-            test: extractOptional(test, 0),
-            update: extractOptional(update, 0),
-            body: optionalList(body)
-          }
-        ]
+        type: "BlockStatement",
+        body: [{
+          type: "seq",
+          stmts: [
+            extractOptional(init, 0),
+            {
+              type: "ForStatement",
+              test: extractOptional(test, 0),
+              update: extractOptional(update, 0),
+              body: optionalList(body)
+            }
+          ]
+        }]
       };
     }
   / ForToken __
@@ -944,33 +949,30 @@ IterationStatement
     body:Statement
     {
       return {
-        type: "seq",
-        stmts: [
-          extractOptional(declarations, 0),
-          {
-            type: "ForStatement",
-            test: extractOptional(test, 0),
-            update: extractOptional(update, 0),
-            body: optionalList(body)
-          }
-        ]
+        type: "BlockStatement",
+        body: [{
+          type: "seq",
+          stmts: [
+            extractOptional(declarations, 0),
+            {
+              type: "ForStatement",
+              test: extractOptional(test, 0),
+              update: extractOptional(update, 0),
+              body: optionalList(body)
+            }
+          ]
+        }]
       };
     }
 
 ContinueStatement
   = ContinueToken EOS {
-      return { type: "ContinueStatement", label: null };
-    }
-  / ContinueToken _ label:Identifier EOS {
-      return { type: "ContinueStatement", label: label };
+      return { type: "ContinueStatement" };
     }
 
 BreakStatement
   = BreakToken EOS {
-      return { type: "BreakStatement", label: null };
-    }
-  / BreakToken _ label:Identifier EOS {
-      return { type: "BreakStatement", label: label };
+      return { type: "BreakStatement" };
     }
 
 ReturnStatement

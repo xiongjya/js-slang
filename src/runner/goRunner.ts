@@ -44,13 +44,6 @@ function unblock_write_thread(address: any) {
   }
 }
 
-function print_map(comment: string, ls: any) {
-  console.log(comment)
-  ls.forEach((v: any, k: any, map: any) => {
-    console.log(`Key: ${k}, Value: ${v}`)
-  })
-}
-
 function block_read_thread(channel: any, id: ThreadId) {
   let blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(channel)
 
@@ -284,11 +277,19 @@ const compile_comp = {
     const jump_on_false_instruction: any = { tag: 'JOF' }
     instrs[wc++] = jump_on_false_instruction
     compile(comp.body, ce)
+    const update_addr = wc
     compile(comp.update, ce)
     instrs[wc++] = { tag: 'POP' }
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
+    instrs[wc++] = { tag: 'WHILE', cont_addr: update_addr }
     jump_on_false_instruction.addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
+  },
+  BreakStatement: (comp: any, ce: any) => {
+    instrs[wc++] = { tag: 'BREAK' }
+  },
+  ContinueStatement: (comp: any, ce: any) => {
+    instrs[wc++] = { tag: 'CONTINUE' }
   },
   CallExpression: (comp: any, ce: any) => {
     if (comp.callee.type !== 'MemberExpression') {
@@ -683,7 +684,29 @@ const microcode = {
   WG_DONE: (instr: any) => {
     OS.push(-1)
     microcode.WG_ADD(instr)
-  }
+  },
+  BREAK: (instr: any) => {
+    // continue popping till while instruction
+    while ((PC < instrs.length) && (instrs[PC].tag !== 'WHILE')) {
+      if (instrs[PC].tag === 'RESET') {
+          error("Break statement outside of while loop")
+      }
+      PC++
+    }
+    if (PC >= instrs.length) {
+      error("Break statement outside of while loop")
+    }
+  },
+  CONTINUE: (instr: any) => {
+    while ((PC < instrs.length) && (instrs[PC].tag !== 'WHILE')) {
+      PC++
+    }
+    if (PC >= instrs.length) {
+      error("Continue statement outside of while loop")
+    }
+    PC = instrs[PC].cont_addr
+  },
+  WHILE: (instr: any) => {}
 }
 
 function new_thread(): ThreadId {
