@@ -53,23 +53,43 @@ func f() {
 go f();
 wg.Wait();
 x;
-`
-*/
 
-const program = `
-var x chan int = make(chan int);
+const a = 10;
+b := 20;
+var x = make(chan);
 
-func f(c chan int) {
-  c <- 10;
+func f(x, val) {
+  x <- val;
   Println("am i blocked");
+  Println(b);
+  Println(a);
 }
 
 for var i = 0; i < 5; i = i + 1 {
-  go f(x);
+  go f(x, i);
   y := <- x;
   Println(y);
 }
 `
+*/
+
+const program = `
+var x = 1;
+const y = 10;
+for var i = 0; i < 10; i = i + 1 {
+  const y = 5;
+  x = x * 2;
+
+  if (x < 16) {
+    continue;
+  }
+
+  x = x + y;
+}
+x;
+continue;
+`
+
 function main() {
   const variant = Variant.CONCURRENT
   const context = createContext(Chapter.GO_1, variant, undefined, undefined)
