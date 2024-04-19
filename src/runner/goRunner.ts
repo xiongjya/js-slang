@@ -10,7 +10,7 @@ type Thread = [
   any[] // RTS
 ]
 
-const heap = new Heap()
+const heap = new Heap(get_all_roots)
 let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
 const waitgroups: Map<string, WaitGroup> = new Map()
@@ -21,6 +21,16 @@ let curr_thread: ThreadId = -1
 const channel_read_block_threads: Map<any, ThreadId[]> = new Map()
 // waiting to write
 const channel_write_block_threads: Map<any, ThreadId[]> = new Map()
+
+function get_all_roots(): number[] {
+  const all_roots = []
+  for (const [tid, state] of threads.entries()) {
+    if (tid === curr_thread) continue
+    all_roots.push(...state[0], state[2], ...state[3])
+  }
+  all_roots.push(...OS, E, ...RTS)
+  return all_roots
+}
 
 function unblock_read_thread(address: any) {
   const blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
@@ -91,8 +101,6 @@ const error = (...x: any) => {
   throw new Error(x)
 }
 
-const get_time = () => Date.now()
-
 const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
   body: [program]
@@ -131,39 +139,21 @@ const builtin_object = {
     console.log(heap.address_to_JS_value(address))
     return address
   },
-  get_time: () => heap.JS_value_to_address(get_time()),
   error: () => error(heap.address_to_JS_value(OS.pop())),
   is_number: () => (heap.is_Number(OS.pop()) ? heap.True : heap.False),
   is_boolean: () => (heap.is_Boolean(OS.pop()) ? heap.True : heap.False),
   is_undefined: () => (heap.is_Undefined(OS.pop()) ? heap.True : heap.False),
   is_string: () => (heap.is_String(OS.pop()) ? heap.True : heap.False), // ADDED CHANGE
   is_function: () => heap.is_Closure(OS.pop()),
-  math_sqrt: () => heap.JS_value_to_address(Math.sqrt(heap.address_to_JS_value(OS.pop()))),
-  head: () => heap.heap_get_child(OS.pop(), 0),
-  tail: () => heap.heap_get_child(OS.pop(), 1),
-  is_null: () => (heap.is_Null(OS.pop()) ? heap.True : heap.False),
-  set_head: () => {
-    const val = OS.pop()
-    const p = OS.pop()
-    heap.heap_set_child(p, 0, val)
-  },
-  set_tail: () => {
-    const val = OS.pop()
-    const p = OS.pop()
-    heap.heap_set_child(p, 1, val)
-  }
+  math_sqrt: () => heap.JS_value_to_address(Math.sqrt(heap.address_to_JS_value(OS.pop())))
 }
 
-const primitive_object = {}
+const builtins = {}
 const builtin_array: any[] = []
 {
   let i = 0
   for (const key in builtin_object) {
-    primitive_object[key] = {
-      tag: 'BUILTIN',
-      id: i,
-      arity: arity(builtin_object[key])
-    }
+    builtins[key] = { tag: 'BUILTIN', id: i, arity: arity(builtin_object[key]) }
     builtin_array[i++] = builtin_object[key]
   }
 }
@@ -180,16 +170,13 @@ const constants = {
   math_SQRT2: Math.SQRT2
 }
 
-for (const key in constants) primitive_object[key] = constants[key]
-
 const compile_time_environment_extend = (vs: any, e: any) => {
   //  make shallow copy of e
   return push([...e], vs)
 }
 
 // compile-time frames only need synbols (keys), no values
-const global_compile_frame = Object.keys(primitive_object)
-const global_compile_environment = [global_compile_frame]
+const global_compile_environment = [Object.keys(builtins), Object.keys(constants)]
 
 /* ********
  * compiler
@@ -453,6 +440,7 @@ const compile = (comp: any, ce: any) => {
     compile_comp[comp.type](comp, ce)
   } catch (e) {
     console.log(e)
+    throw e
   }
 }
 
@@ -505,23 +493,29 @@ const apply_builtin = (builtin_id: any) => {
 }
 
 // creating global runtime environment
-const primitive_values = Object.values(primitive_object)
-const frame_address = heap.heap_allocate_Frame(primitive_values.length)
-for (let i = 0; i < primitive_values.length; i++) {
-  const primitive_value: any = primitive_values[i]
-  if (typeof primitive_value === 'object' && primitive_value.hasOwnProperty('id')) {
-    heap.heap_set_child(frame_address, i, heap.heap_allocate_Builtin(primitive_value.id))
-  } else if (typeof primitive_value === 'undefined') {
-    heap.heap_set_child(frame_address, i, heap.Undefined)
-  } else {
-    heap.heap_set_child(frame_address, i, heap.heap_allocate_Number(primitive_value))
+function allocate_builtin_frame() {
+  const builtin_values = Object.values(builtins)
+  const frame_address = heap.heap_allocate_Frame(builtin_values.length)
+  for (let i = 0; i < builtin_values.length; i++) {
+    const builtin: any = builtin_values[i]
+    heap.heap_set_child(frame_address, i, heap.heap_allocate_Builtin(builtin.id))
   }
+  return frame_address
 }
 
-const global_environment = heap.heap_Environment_extend(
-  frame_address,
-  heap.heap_empty_Environment()
-)
+function allocate_constant_frame() {
+  const constant_values = Object.values(constants)
+  const frame_address = heap.heap_allocate_Frame(constant_values.length)
+  for (let i = 0; i < constant_values.length; i++) {
+    const constant_value = constant_values[i]
+    if (typeof constant_value === 'undefined') {
+      heap.heap_set_child(frame_address, i, heap.Undefined)
+    } else {
+      heap.heap_set_child(frame_address, i, heap.heap_allocate_Number(constant_value))
+    }
+  }
+  return frame_address
+}
 
 /* *******
  * machine
@@ -770,7 +764,13 @@ function run() {
   init_scheduler()
   OS = []
   PC = 0
-  E = global_environment
+  const builtins_frame = allocate_builtin_frame()
+  const constants_frame = allocate_constant_frame()
+  E = heap.heap_allocate_Environment(0)
+  E = heap.heap_Environment_extend(builtins_frame, E)
+  E = heap.heap_Environment_extend(constants_frame, E)
+  heap.set_heap_bottom() // bottom of heap is the addr that separates the builtin/constants from the other objects
+
   new_thread()
   next_thread()
   heap.reset_string_pool() // ADDED CHANGE

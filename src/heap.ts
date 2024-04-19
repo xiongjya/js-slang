@@ -1,5 +1,3 @@
-const get_size = (x: any) => 0
-
 /* *************************
  * HEAP
  * *************************/
@@ -10,12 +8,22 @@ const word_size = 8
 // const mega = 2 ** 20
 const size_offset = 5
 
+type address = number
 export default class Heap {
   reset_string_pool() {
     this.stringPool = {}
   }
+
   private HEAP: DataView = Heap.heap_make(1000000)
-  private free: number = 0
+  private free: address = 0
+  static mark_bit: number = 7
+  static UNMARKED: number = 0
+  static MARKED: number = 1
+  static node_size: number = 10
+  static heap_size_words: number
+  private HEAP_BOTTOM: address
+  private ALLOCATING: any[]
+  private root_getter: any
 
   // Record<string, tuple(number, string)> where the key is the hash of the string
   // and the value is a tuple of the address of the string and the string itself
@@ -40,9 +48,34 @@ export default class Heap {
   static String_tag = 13 // ADDED CHANGE
   static Channel_tag = 14
 
-  static heap_make(bytes: any): DataView {
-    const data = new ArrayBuffer(bytes)
+  // literals
+  False: address
+  True: address
+  Null: address
+  Unassigned: address
+  Undefined: address
+
+  constructor(root_getter: any) {
+    this.ALLOCATING = []
+    let i = 0
+    for (i = 0; i <= Heap.heap_size_words - Heap.node_size; i = i + Heap.node_size) {
+      this.heap_set(i, i + Heap.node_size)
+    }
+    // the empty free list is represented by -1
+    this.heap_set(i - Heap.node_size, -1)
+    this.root_getter = root_getter
+
+    this.False = this.heap_allocate(Heap.False_tag, 1)
+    this.True = this.heap_allocate(Heap.True_tag, 1)
+    this.Null = this.heap_allocate(Heap.Null_tag, 1)
+    this.Unassigned = this.heap_allocate(Heap.Unassigned_tag, 1)
+    this.Undefined = this.heap_allocate(Heap.Undefined_tag, 1)
+  }
+
+  static heap_make(num_words: number): DataView {
+    const data = new ArrayBuffer(num_words * word_size)
     const view = new DataView(data)
+    Heap.heap_size_words = num_words
     return view
   }
   // heap_allocate allocates a given number of words
@@ -53,8 +86,18 @@ export default class Heap {
   //  2 bytes #children, 1 byte unused]
   // Note: payload depends on the type of node
   heap_allocate(tag: any, size: any): number {
+    // a value of -1 in free indicates the
+    // end of the free list
+    if (size > Heap.node_size) {
+      throw new Error('limitation: nodes cannot be larger than 10 words')
+    }
+
+    if (this.free === -1) {
+      this.mark_sweep()
+    }
+
     const address = this.free
-    this.free += size
+    this.free = this.heap_get(this.free)
     this.HEAP.setUint8(address * word_size, tag)
     this.HEAP.setUint16(address * word_size + size_offset, size)
     return address
@@ -90,7 +133,7 @@ export default class Heap {
   // except for number nodes:
   //                 they have size 2 but no children
   heap_get_number_of_children(address: any): number {
-    return this.heap_get_tag(address) === Heap.Number_tag ? 0 : get_size(address) - 1
+    return this.heap_get_tag(address) === Heap.Number_tag ? 0 : this.heap_get_size(address) - 1
   }
 
   // access byte in heap, using address and offset
@@ -133,20 +176,13 @@ export default class Heap {
     return binStr
   }
 
-  // all values (including literals) are allocated on the heap.
-
-  // We allocate canonical values for
-  // true, false, undefined, null, and unassigned
-  // and make sure no such values are created at runtime
-
   // boolean values carry their value (0 for false, 1 for true)
   // in the byte following the tag
-  False = this.heap_allocate(Heap.False_tag, 1)
+
   is_False(address: any) {
     return this.heap_get_tag(address) === Heap.False_tag
   }
 
-  True = this.heap_allocate(Heap.True_tag, 1)
   is_True(address: any) {
     return this.heap_get_tag(address) === Heap.True_tag
   }
@@ -155,17 +191,14 @@ export default class Heap {
     return this.is_True(address) || this.is_False(address)
   }
 
-  Null = this.heap_allocate(Heap.Null_tag, 1)
   is_Null(address: any) {
     return this.heap_get_tag(address) === Heap.Null_tag
   }
 
-  Unassigned = this.heap_allocate(Heap.Unassigned_tag, 1)
   is_Unassigned(address: any) {
     return this.heap_get_tag(address) === Heap.Unassigned_tag
   }
 
-  Undefined = this.heap_allocate(Heap.Undefined_tag, 1)
   is_Undefined(address: any) {
     return this.heap_get_tag(address) === Heap.Undefined_tag
   }
@@ -192,7 +225,6 @@ export default class Heap {
   // const result2 = hashString("hello world");
   // console.log(result2, "hash of hello world:");
 
-  String = this.heap_allocate(Heap.String_tag, 1)
   is_String(address: any): boolean {
     return this.heap_get_tag(address) === Heap.String_tag
   }
@@ -346,7 +378,9 @@ export default class Heap {
   //   they could be used to increase pc and #children range
 
   heap_allocate_Closure(arity: any, pc: any, env: any) {
+    this.ALLOCATING = [env]
     const address = this.heap_allocate(Heap.Closure_tag, 2)
+    this.ALLOCATING = []
     this.heap_set_byte_at_offset(address, 1, arity)
     this.heap_set_2_bytes_at_offset(address, 2, pc)
     this.heap_set(address + 1, env)
@@ -374,7 +408,9 @@ export default class Heap {
   //  2 bytes #children, 1 byte unused]
 
   heap_allocate_Blockframe(env: any) {
+    this.ALLOCATING = [env]
     const address = this.heap_allocate(Heap.Blockframe_tag, 2)
+    this.ALLOCATING = []
     this.heap_set(address + 1, env)
     return address
   }
@@ -393,7 +429,9 @@ export default class Heap {
   // followed by the address of env
 
   heap_allocate_Callframe(env: any, pc: any) {
+    this.ALLOCATING = [env]
     const address = this.heap_allocate(Heap.Callframe_tag, 2)
+    this.ALLOCATING = []
     this.heap_set_2_bytes_at_offset(address, 2, pc)
     this.heap_set(address + 1, env)
     return address
@@ -441,10 +479,6 @@ export default class Heap {
     return this.heap_allocate(Heap.Environment_tag, number_of_frames + 1)
   }
 
-  heap_empty_Environment() {
-    return this.heap_allocate_Environment(0)
-  }
-
   // access environment given by address
   // using a "position", i.e. a pair of
   // frame index and value index
@@ -470,7 +504,9 @@ export default class Heap {
   // of the new environment
   heap_Environment_extend(frame_address: any, env_address: any) {
     const old_size = this.heap_get_size(env_address)
+    this.ALLOCATING = [frame_address, env_address]
     const new_env_address = this.heap_allocate_Environment(old_size)
+    this.ALLOCATING = []
     let i
     for (i = 0; i < old_size - 1; i++) {
       this.heap_set_child(new_env_address, i, this.heap_get_child(env_address, i))
@@ -565,5 +601,63 @@ export default class Heap {
       : Heap.is_string(x) // ADDED CHANGE
       ? this.heap_allocate_String(x) // ADDED CHANGE
       : 'unknown word tag: ' + Heap.word_to_string(x)
+  }
+
+  set_heap_bottom(): void {
+    this.HEAP_BOTTOM = this.free
+  }
+
+  mark_sweep() {
+    const roots = this.root_getter()
+    roots.push(...this.ALLOCATING)
+    for (let i = 0; i < roots.length; i++) {
+      this.mark(roots[i])
+    }
+
+    this.sweep()
+
+    if (this.free === -1) {
+      throw new Error('heap memory exhausted')
+      // or error("out of memory")
+    }
+  }
+
+  mark(node: number) {
+    if (node >= Heap.heap_size_words) {
+      return
+    }
+
+    if (this.is_unmarked(node)) {
+      this.heap_set_byte_at_offset(node, Heap.mark_bit, Heap.MARKED)
+
+      const num_of_children = this.heap_get_number_of_children(node)
+
+      for (let i = 0; i < num_of_children; i++) {
+        this.mark(this.heap_get_child(node, i))
+      }
+    }
+  }
+
+  sweep() {
+    let v = this.HEAP_BOTTOM
+
+    while (v < Heap.heap_size_words) {
+      if (this.is_unmarked(v)) {
+        this.free_node(v)
+      } else {
+        this.heap_set_byte_at_offset(v, Heap.mark_bit, Heap.UNMARKED)
+      }
+
+      v = v + Heap.node_size
+    }
+  }
+  is_unmarked(node: number): boolean {
+    return this.heap_get_byte_at_offset(node, Heap.mark_bit) === Heap.UNMARKED
+  }
+
+  free_node(node: number): void {
+    // heap set is used for retrieving the next free node
+    this.heap_set(node, this.free)
+    this.free = node
   }
 }
