@@ -3,7 +3,7 @@ import { parse, PeggySyntaxError } from './go_parser';
 export default function go_parse(sourceCode: string) {
   // return parse(sourceCode);
 
-  let parsed_program: object = {};
+  let parsed_program;
     try {
         parsed_program = parse(sourceCode);
     } catch (error) {
