@@ -10,7 +10,7 @@ type Thread = [
   any[] // RTS
 ]
 
-const heap = new Heap()
+const heap = new Heap(get_all_roots)
 let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
 const waitgroups: Map<string, WaitGroup> = new Map()
@@ -21,6 +21,16 @@ let curr_thread: ThreadId = -1
 const channel_read_block_threads: Map<any, ThreadId[]> = new Map()
 // waiting to write
 const channel_write_block_threads: Map<any, ThreadId[]> = new Map()
+
+function get_all_roots(): number[] {
+  const all_roots = []
+  for (const [tid, state] of threads.entries()) {
+    if (tid === curr_thread) continue
+    all_roots.push(...state[0], state[2], ...state[3])
+  }
+  all_roots.push(...OS, E, ...RTS)
+  return all_roots
+}
 
 function unblock_read_thread(address: any) {
   const blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
@@ -460,6 +470,7 @@ const compile = (comp: any, ce: any) => {
     compile_comp[comp.type](comp, ce)
   } catch (e) {
     console.log(e)
+    throw e
   }
 }
 
@@ -525,10 +536,11 @@ for (let i = 0; i < primitive_values.length; i++) {
   }
 }
 
-const global_environment = heap.heap_Environment_extend(
-  frame_address,
-  heap.heap_empty_Environment()
-)
+const empty_env = heap.heap_allocate_Environment(0)
+
+const global_environment = heap.heap_Environment_extend(frame_address, empty_env)
+
+heap.set_heap_bottom() // bottom of heap is the addr that separates the builtin/constants from the other objects
 
 /* *******
  * machine
