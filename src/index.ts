@@ -239,7 +239,7 @@ export async function runFilesInContext(
 
   if (context.chapter === Chapter.GO_1) {
     const program = parse(code, context)
-    return goRunner(program)
+    return goRunner(program, context)
   }
 
   if (
