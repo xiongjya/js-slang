@@ -10,19 +10,20 @@ const word_size = 8
 // const mega = 2 ** 20
 const size_offset = 5
 
+type address = number
 export default class Heap {
   reset_string_pool() {
     this.stringPool = {}
   }
 
   private HEAP: DataView = Heap.heap_make(1000000)
-  private free: number = 0
+  private free: address = 0
   static mark_bit: number = 7
   static UNMARKED: number = 0
   static MARKED: number = 1
   static node_size: number = 10
   static heap_size_words: number
-  private HEAP_BOTTOM: number = this.free
+  private HEAP_BOTTOM: address
   private ALLOCATING: any[]
   private root_getter: any
 
@@ -49,6 +50,13 @@ export default class Heap {
   static String_tag = 13 // ADDED CHANGE
   static Channel_tag = 14
 
+  // literals
+  False: address
+  True: address
+  Null: address
+  Unassigned: address
+  Undefined: address
+
   constructor(root_getter: any) {
     this.ALLOCATING = []
     let i = 0
@@ -58,6 +66,12 @@ export default class Heap {
     // the empty free list is represented by -1
     this.heap_set(i - Heap.node_size, -1)
     this.root_getter = root_getter
+
+    this.False = this.heap_allocate(Heap.False_tag, 1)
+    this.True = this.heap_allocate(Heap.True_tag, 1)
+    this.Null = this.heap_allocate(Heap.Null_tag, 1)
+    this.Unassigned = this.heap_allocate(Heap.Unassigned_tag, 1)
+    this.Undefined = this.heap_allocate(Heap.Undefined_tag, 1)
   }
 
   static heap_make(num_words: number): DataView {
@@ -76,6 +90,10 @@ export default class Heap {
   heap_allocate(tag: any, size: any): number {
     // a value of -1 in free indicates the
     // end of the free list
+    if (size > Heap.node_size) {
+      throw new Error('limitation: nodes cannot be larger than 10 words')
+    }
+
     if (this.free === -1) {
       this.mark_sweep()
     }
@@ -160,20 +178,13 @@ export default class Heap {
     return binStr
   }
 
-  // all values (including literals) are allocated on the heap.
-
-  // We allocate canonical values for
-  // true, false, undefined, null, and unassigned
-  // and make sure no such values are created at runtime
-
   // boolean values carry their value (0 for false, 1 for true)
   // in the byte following the tag
-  False = this.heap_allocate(Heap.False_tag, 1)
+
   is_False(address: any) {
     return this.heap_get_tag(address) === Heap.False_tag
   }
 
-  True = this.heap_allocate(Heap.True_tag, 1)
   is_True(address: any) {
     return this.heap_get_tag(address) === Heap.True_tag
   }
@@ -182,17 +193,14 @@ export default class Heap {
     return this.is_True(address) || this.is_False(address)
   }
 
-  Null = this.heap_allocate(Heap.Null_tag, 1)
   is_Null(address: any) {
     return this.heap_get_tag(address) === Heap.Null_tag
   }
 
-  Unassigned = this.heap_allocate(Heap.Unassigned_tag, 1)
   is_Unassigned(address: any) {
     return this.heap_get_tag(address) === Heap.Unassigned_tag
   }
 
-  Undefined = this.heap_allocate(Heap.Undefined_tag, 1)
   is_Undefined(address: any) {
     return this.heap_get_tag(address) === Heap.Undefined_tag
   }
@@ -219,7 +227,6 @@ export default class Heap {
   // const result2 = hashString("hello world");
   // console.log(result2, "hash of hello world:");
 
-  String = this.heap_allocate(Heap.String_tag, 1)
   is_String(address: any): boolean {
     return this.heap_get_tag(address) === Heap.String_tag
   }
@@ -612,7 +619,7 @@ export default class Heap {
     this.sweep()
 
     if (this.free === -1) {
-      console.error('heap memory exhausted')
+      throw new Error('heap memory exhausted')
       // or error("out of memory")
     }
   }
