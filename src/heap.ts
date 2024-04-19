@@ -15,7 +15,7 @@ export default class Heap {
     this.stringPool = {}
   }
 
-  private HEAP: DataView = Heap.heap_make(300)
+  private HEAP: DataView = Heap.heap_make(1000000)
   private free: number = 0
   static mark_bit: number = 7
   static UNMARKED: number = 0
