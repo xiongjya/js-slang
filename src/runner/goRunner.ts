@@ -731,11 +731,18 @@ const microcode = {
       for (let thread of wg.Add(delta, heap)) {
         scheduler.unblockThread(thread)
       }
+    } else {
+      error("Called waitgroup method on non-waitgroup")
     }
   },
   WG_WAIT: (instr: any) => {
     const addr = heap.heap_get_Environment_value(E, instr.pos)
-    BLOCKING = !waitgroups.get(addr)?.Try_Wait(curr_thread, heap)
+    const wg = waitgroups.get(addr)
+    if (wg) {
+      BLOCKING = !wg.Try_Wait(curr_thread, heap)
+    } else {
+      error("Called waitgroup method on non-waitgroup")
+    }
   },
   WG_DONE: (instr: any) => {
     const addr = heap.heap_get_Environment_value(E, instr.pos)
@@ -744,6 +751,8 @@ const microcode = {
       for (let thread of wg.Add(-1, heap)) {
         scheduler.unblockThread(thread)
       }
+    } else {
+      error("Called waitgroup method on non-waitgroup")
     }
   },
   BREAK: (instr: any) => {
