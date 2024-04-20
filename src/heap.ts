@@ -8,7 +8,7 @@ const word_size = 8
 // const mega = 2 ** 20
 const size_offset = 5
 
-type address = number
+export type address = number
 export default class Heap {
   reset_string_pool() {
     this.stringPool = {}
@@ -537,6 +537,10 @@ export default class Heap {
     const number_address = this.heap_allocate(Heap.Number_tag, 2)
     this.heap_set(number_address + 1, n)
     return number_address
+  }
+  
+  heap_change_Number(addr: address, new_number: number) {
+    this.heap_set(addr + 1, new_number)
   }
 
   is_Number(address: any): boolean {
