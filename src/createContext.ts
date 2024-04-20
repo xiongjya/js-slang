@@ -763,6 +763,10 @@ export const importBuiltins = (context: Context, externalBuiltIns: CustomBuiltIn
       defineBuiltin(context, 'math_trunc(x)', pylib.math_trunc)
     }
   }
+
+  if (context.chapter === Chapter.GO_1) {
+    defineBuiltin(context, 'print(val)', display, 1)
+  }
 }
 
 function importPrelude(context: Context) {
