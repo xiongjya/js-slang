@@ -1,4 +1,4 @@
-import Heap from '../heap'
+import Heap, { address } from '../heap'
 import { Scheduler, ThreadId } from '../scheduler'
 import { Context, Finished, Result } from '../types'
 import WaitGroup from '../waitgroup'
@@ -13,7 +13,7 @@ type Thread = [
 const heap = new Heap(get_all_roots)
 let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
-const waitgroups: Map<string, WaitGroup> = new Map()
+const waitgroups: Map<address, WaitGroup> = new Map()
 let curr_thread: ThreadId = -1
 
 // blocked threads due to channel
@@ -187,7 +187,7 @@ const global_compile_environment = [Object.keys(builtins), Object.keys(constants
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
+  } else if (['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)) {
     return comp.ids.map((x: any) => x.name)
   } else if (comp.type === 'FunctionDeclaration') {
     return [comp.id.name]
@@ -309,10 +309,7 @@ const compile_comp = {
   },
   MemberExpression: (comp: any, ce: any) => {
     if (['Add', 'Wait', 'Done'].includes(comp.property.name)) {
-      if (!waitgroups.has(comp.object.name)) {
-        throw new Error(`Cannot call ${comp.property.name} on non-WaitGroup`)
-      }
-      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, wg: comp.object.name }
+      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, pos: compile_time_environment_position(ce ,comp.object.name) }
     }
   },
   GoRoutine: (comp: any, ce: any) => {
@@ -362,16 +359,20 @@ const compile_comp = {
     instrs[wc++] = { tag: 'EXIT_SCOPE' }
   },
   VariableDeclaration: (comp: any, ce: any) => {
-    if (comp.vartype === 'WaitGroup') {
-      for (let { name } of comp.ids) waitgroups.set(name, new WaitGroup())
-      return
-    }
     if (!comp.inits) return
     for (let i = 0; i < comp.inits.length; i++) {
       compile(comp.inits[i], ce)
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.ids[i].name)
+      }
+    }
+  },
+  WaitGroupDeclaration: (comp: any, ce: any) => {
+    for (let { name } of comp.ids) {
+      instrs[wc++] = {
+        tag: 'NEW_WG',
+        pos: compile_time_environment_position(ce, name)
       }
     }
   },
@@ -668,22 +669,34 @@ const microcode = {
     // unblock any random thread waiting to write to channel
     unblock_write_thread(channel)
   },
+  NEW_WG: (instr: any) => {
+    const addr = heap.heap_allocate_Number(0)
+    waitgroups.set(addr, new WaitGroup(addr))
+    heap.heap_set_Environment_value(E, instr.pos, addr)
+  },
   WG_ADD: (instr: any) => {
     let delta = OS.pop()
-    delta = delta === -1 ? delta : heap.address_to_JS_value(delta) // hacky haha
-    const wg = waitgroups.get(instr.wg)
+    delta = heap.address_to_JS_value(delta)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    const wg = waitgroups.get(addr)
     if (wg) {
-      for (let thread of wg.Add(delta)) {
+      for (let thread of wg.Add(delta, heap)) {
         scheduler.unblockThread(thread)
       }
     }
   },
   WG_WAIT: (instr: any) => {
-    BLOCKING = !waitgroups.get(instr.wg)?.Try_Wait(curr_thread)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    BLOCKING = !waitgroups.get(addr)?.Try_Wait(curr_thread, heap)
   },
   WG_DONE: (instr: any) => {
-    OS.push(-1)
-    microcode.WG_ADD(instr)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    const wg = waitgroups.get(addr)
+    if (wg) {
+      for (let thread of wg.Add(-1, heap)) {
+        scheduler.unblockThread(thread)
+      }
+    }
   },
   BREAK: (instr: any) => {
     // continue popping till while instruction
