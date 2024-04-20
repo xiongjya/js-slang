@@ -232,17 +232,17 @@ test('Illegal WaitGroup operations throw error', async () => {
   expect(result.status).toBe('error')
 })
 
-test('Channel', async () => {
+test('Single unbuffered channel', async () => {
   const program: string = `
     var x = make(chan);
     var y = 2;
 
-    func f(c) {
-        c <- 10;
+    func f() {
+        x <- 10;
     }
 
     for var i = 0; i < 5; i = i + 1 {
-        go f(x);
+        go f();
         y = <- x;
     }
     y;
@@ -250,6 +250,116 @@ test('Channel', async () => {
   let result = await test_program(program)
   expect(result.status).toBe('finished')
   expect((result as any).value).toBe(10)
+})
+
+test('Single buffered channel', async () => {
+  var program: string = `
+    var x = make(chan, 3);
+
+    for var i = 0; i < 3; i = i + 1 {
+      x <- i;
+    }
+    `
+  var result = await test_program(program)
+  expect(result.status).toBe('finished')
+
+  program = `
+    var x = make(chan, 3);
+
+    for var i = 0; i < 4; i = i + 1 {
+      x <- i;
+    }
+    `
+  result = await test_program(program)
+  expect(result.status).toBe('error')
+})
+
+test('Passing channel into a function', async () => {
+  const program: string = `
+    var y = 2;
+    func f(c) {
+        c <- 10;
+    }
+    func main() {
+      var x = make(chan);
+      for var i = 0; i < 5; i = i + 1 {
+          go f(x);
+          y = <- x;
+      }
+    }
+    main();
+    y;
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(10)
+})
+
+test('Reading from empty closed channel unblocks', async () => {
+  const program: string = `
+    var y = 0;
+    func f(c) {
+        x := <- c;
+        y = 3;
+    }
+    func main() {
+      var x = make(chan);
+      go f(x);
+      close(x);
+    }
+    main();
+    for var i = 0; i < 10; i = i + 1 {}
+    y;
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(3)
+})
+
+test('Writing to closed channel throws error', async () => {
+  const program: string = `
+    var y = 0;
+    func f(c) {
+      c <- 10;
+    }
+    func main() {
+      var x = make(chan);
+      close(x);
+      go f(x);
+    }
+    main();
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('error')
+})
+
+test('Illegal channel operations throw error : Writing to closed channel, writing/reading from non-channel', async () => {
+  var program: string = `
+    var y = 0;
+    func f(c) {
+      c <- 10;
+    }
+    func main() {
+      var x = make(chan);
+      close(x);
+      go f(x);
+    }
+    main();
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('error')
+  program = `
+    var c = 1;
+    c <- 2;
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('error')
+  program = `
+    var c = 1;
+    x :=<- c;
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('error')
 })
 
 test('Deadlock detection: WaitGroup', async () => {
