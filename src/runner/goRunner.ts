@@ -2,6 +2,8 @@ import Heap, { address } from '../heap'
 import { Scheduler, ThreadId } from '../scheduler'
 import { Context, Finished, Result } from '../types'
 import WaitGroup from '../waitgroup'
+import { toSourceError } from './errors'
+import { resolvedErrorPromise } from './utils'
 
 type Thread = [
   any[], // OS
@@ -159,10 +161,11 @@ const is_name_constant_helper = (frame: any, x: any) => {
 // arguments directly from the operand stack,
 // to save the creation of an intermediate
 // argument array
+let log: Function // defined by context
 const builtin_object = {
   Println: () => {
     const address = OS.pop()
-    console.log(heap.address_to_JS_value(address))
+    log(heap.address_to_JS_value(address))
     return address
   },
   error: () => error(heap.address_to_JS_value(OS.pop())),
@@ -478,14 +481,7 @@ const compile_comp = {
 
 // compile component into instruction array instrs,
 // starting at wc (write counter)
-const compile = (comp: any, ce: any) => {
-  try {
-    compile_comp[comp.type](comp, ce)
-  } catch (e) {
-    console.log(e)
-    throw e
-  }
-}
+const compile = (comp: any, ce: any) => compile_comp[comp.type](comp, ce)
 
 // compile program into instruction array instrs,
 // after initializing wc and instrs
@@ -871,13 +867,18 @@ function run() {
 }
 
 export async function goRunner(program: any, context: Context): Promise<Result> {
-  if (program === null) {
-    error('there is a parsing error with the program input')
+  try {
+    if (program === null) {
+      error('there is a parsing error with the program input')
+    }
+    log = context.nativeStorage.builtins.get('print')
+    compile_program(wrap_in_block(program))
+    const result: any = run()
+    // console.log('result: ', result)
+
+    return Promise.resolve({ value: result, status: 'finished', context: context } as Finished)
+  } catch (e) {
+    context.errors.push(await toSourceError(e))
+    return resolvedErrorPromise
   }
-
-  compile_program(wrap_in_block(program))
-  const result: any = run()
-  // console.log('result: ', result)
-
-  return Promise.resolve({ value: result, status: 'finished', context: context } as Finished)
 }
