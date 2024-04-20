@@ -102,6 +102,7 @@ func f(x, y, z) {
 
 f(1, 2, 3);
 x = 5;
+z := make(chan, 6)
 `
 
 function main() {
