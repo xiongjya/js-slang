@@ -56,12 +56,22 @@ function unblock_write_thread(address: any) {
   }
 }
 
-function unblock_all_write_threads(address: any) {
-  const blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
+function unblock_all_threads(address: any) {
+  let read_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
 
-  if (blocked_threads !== undefined) {
-    for (let i = 0; i < blocked_threads.length; i++) {
-      scheduler.unblockThread(blocked_threads[i])
+  if (read_threads !== undefined) {
+    for (let i = 0; i < read_threads.length; i++) {
+      scheduler.unblockThread(read_threads[i])
+    }
+
+    channel_read_block_threads.delete(address)
+  }
+
+  const write_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
+
+  if (write_threads !== undefined) {
+    for (let i = 0; i < write_threads.length; i++) {
+      scheduler.unblockThread(write_threads[i])
     }
 
     channel_write_block_threads.delete(address)
@@ -776,8 +786,8 @@ const microcode = {
     // close channel
     heap.heap_Channel_close(channel)
 
-    // unblock all threads waiting to write to it
-    unblock_all_write_threads(channel)
+    // unblock all threads waiting to read or write to it
+    unblock_all_threads(channel)
   },
   NEW_WG: (instr: any) => {
     const addr = heap.heap_allocate_Number(0)
