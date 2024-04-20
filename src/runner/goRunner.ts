@@ -64,7 +64,7 @@ function unblock_all_write_threads(address: any) {
       scheduler.unblockThread(blocked_threads[i])
     }
 
-    channel_write_block_threads.set(address, [])
+    channel_write_block_threads.delete(address)
   }
 }
 

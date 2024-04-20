@@ -257,7 +257,7 @@ export default class Heap {
   // channel:
   // [1 byte tag, 1 byte is_unbuffered,
   //  1 byte is_closed, 2 bytes unused,
-  //  2 bytes #children, 1 byte mutex]
+  //  2 bytes #children, 1 byte unused]
   // Note: #children is 0
   // Additional 4 slots: channel information, channel size, channel write pointer, channel read pointer
   static empty_channel_slot = -3
