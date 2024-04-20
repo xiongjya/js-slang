@@ -734,6 +734,7 @@ Statement
   = Block
   / ConstantStatement
   / VariableStatement
+  / WaitGroupStatement
   / ShortVariableStatement
   / EmptyStatement
   / ChannelSendStatement
@@ -770,6 +771,14 @@ VariableStatement
         type: "VariableDeclaration",
         kind: "var",
         ...declarations
+      };
+    }
+
+WaitGroupStatement
+  = VarToken __ ids:IdentifierList __ WaitGroupToken EOS {
+      return {
+        type: "WaitGroupDeclaration",
+        ids: ids
       };
     }
 
