@@ -877,7 +877,7 @@ export async function goRunner(program: any, context: Context): Promise<Result> 
 
   compile_program(wrap_in_block(program))
   const result: any = run()
-  console.log('result: ', result)
+  // console.log('result: ', result)
 
   return Promise.resolve({ value: result, status: 'finished', context: context } as Finished)
 }
