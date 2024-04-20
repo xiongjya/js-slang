@@ -215,7 +215,9 @@ const global_compile_environment = [builtins_symbols, global_constant_symbols]
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)) {
+  } else if (
+    ['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)
+  ) {
     const is_const = comp.type === 'VariableDeclaration' ? 0 : 1
     return comp.ids.map((x: any) => ({ name: x.name, is_const }))
   } else if (comp.type === 'FunctionDeclaration') {
@@ -338,7 +340,10 @@ const compile_comp = {
   },
   MemberExpression: (comp: any, ce: any) => {
     if (['Add', 'Wait', 'Done'].includes(comp.property.name)) {
-      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, pos: compile_time_environment_position(ce ,comp.object.name) }
+      instrs[wc++] = {
+        tag: `WG_${comp.property.name.toUpperCase()}`,
+        pos: compile_time_environment_position(ce, comp.object.name)
+      }
     }
   },
   GoRoutine: (comp: any, ce: any) => {
