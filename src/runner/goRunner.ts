@@ -301,6 +301,10 @@ const compile_comp = {
     compile(comp.alternate, ce)
     goto_instruction.addr = wc
   },
+  ConditionalExpression: (comp: any, ce: any) => {
+    comp.type = 'IfStatement'
+    compile(comp, ce)
+  },
   ForStatement: (comp: any, ce: any) => {
     const loop_start = wc
     compile(comp.test, ce)
@@ -878,6 +882,7 @@ export async function goRunner(program: any, context: Context): Promise<Result> 
 
     return Promise.resolve({ value: result, status: 'finished', context: context } as Finished)
   } catch (e) {
+    console.log(e)
     context.errors.push(await toSourceError(e))
     return resolvedErrorPromise
   }
