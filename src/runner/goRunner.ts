@@ -60,11 +60,11 @@ function unblock_all_write_threads(address: any) {
   const blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
 
   if (blocked_threads !== undefined) {
-    for (let i = 0; i < blocked_threads.length; i++ ) {
-      scheduler.unblockThread(blocked_threads[i]);
+    for (let i = 0; i < blocked_threads.length; i++) {
+      scheduler.unblockThread(blocked_threads[i])
     }
 
-    channel_write_block_threads.set(address, []);
+    channel_write_block_threads.set(address, [])
   }
 }
 
@@ -678,7 +678,7 @@ const microcode = {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
 
     // check is channel, if not throw error
-    const is_channel = heap.is_Channel(channel);
+    const is_channel = heap.is_Channel(channel)
     if (!is_channel) {
       error('invalid operation: cannot send to non-channel')
       return
@@ -722,7 +722,7 @@ const microcode = {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
 
     // check is channel, if not throw error
-    const is_channel = heap.is_Channel(channel);
+    const is_channel = heap.is_Channel(channel)
     if (!is_channel) {
       error('invalid operation: cannot read from non-channel')
       return
@@ -760,7 +760,7 @@ const microcode = {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
 
     // check is channel, if not throw error
-    const is_channel = heap.is_Channel(channel);
+    const is_channel = heap.is_Channel(channel)
     if (!is_channel) {
       error('invalid operation: cannot close non-channel')
       return
@@ -794,7 +794,7 @@ const microcode = {
         scheduler.unblockThread(thread)
       }
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   WG_WAIT: (instr: any) => {
@@ -803,7 +803,7 @@ const microcode = {
     if (wg) {
       BLOCKING = !wg.Try_Wait(curr_thread, heap)
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   WG_DONE: (instr: any) => {
@@ -814,7 +814,7 @@ const microcode = {
         scheduler.unblockThread(thread)
       }
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   BREAK: (instr: any) => {
