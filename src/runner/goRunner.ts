@@ -359,7 +359,7 @@ const compile_comp = {
 
       const is_const = is_name_constant(ce, comp.left.name) === 1
       if (is_const) {
-        error('unable to reassign value to constant')
+        error('unable to reassign value to constant/waitgroup')
         return
       }
 

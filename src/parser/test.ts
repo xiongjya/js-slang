@@ -93,9 +93,11 @@ x;
 const program = `
 var x = 1;
 const y = 10;
+var wg WaitGroup;
 
 func f(x, y, z) { 
-  Println(100);
+  x = 10;
+  Println(x);
 }
 
 f(1, 2, 3);
