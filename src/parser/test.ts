@@ -8,7 +8,7 @@ const program = `
 var x = 1;
 const y = 10;
 
-func f(x int) { 
+func f(x) { 
   Println(100);
 }
 
@@ -70,10 +70,7 @@ for var i = 0; i < 5; i = i + 1 {
   y := <- x;
   Println(y);
 }
-`
-*/
 
-const program = `
 var x = 1;
 const y = 10;
 for var i = 0; i < 10; i = i + 1 {
@@ -91,6 +88,20 @@ for var i = 0; i < 10; i = i + 1 {
   x = x + y;
 }
 x;
+
+`
+*/
+
+const program = `
+var x = 1;
+const y = 10;
+
+func f(x, y, z) { 
+  Println(100);
+}
+
+f(1, 2, 3);
+x = 5;
 `
 
 function main() {
