@@ -56,14 +56,17 @@ function unblock_write_thread(address: any) {
   }
 }
 
-/*
-function print_map(comment: string, ls: any) {
-  console.log(comment)
-  ls.forEach((v: any, k: any, map: any) => {
-    console.log(`Key: ${k}, Value: ${v}`)
-  })
+function unblock_all_write_threads(address: any) {
+  const blocked_threads: ThreadId[] | undefined = channel_write_block_threads.get(address)
+
+  if (blocked_threads !== undefined) {
+    for (let i = 0; i < blocked_threads.length; i++ ) {
+      scheduler.unblockThread(blocked_threads[i]);
+    }
+
+    channel_write_block_threads.set(address, []);
+  }
 }
-*/
 
 function block_read_thread(channel: any, id: ThreadId) {
   let blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(channel)
@@ -480,6 +483,12 @@ const compile_comp = {
       pos: compile_time_environment_position(ce, comp.right.name)
     }
   },
+  ChannelCloseStatement: (comp: any, ce: any) => {
+    instrs[wc++] = {
+      tag: 'CHAN_CLOSE',
+      pos: compile_time_environment_position(ce, comp.ids.name)
+    }
+  },
   EmptyStatement: (comp: any, ce: any) => {}
 }
 
@@ -667,7 +676,22 @@ const microcode = {
   },
   CHAN_WRITE: (instr: any) => {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
+
+    // check is channel, if not throw error
+    const is_channel = heap.is_Channel(channel);
+    if (!is_channel) {
+      error('invalid operation: cannot send to non-channel')
+      return
+    }
+
     const item = peek(OS, 0)
+
+    // check if channel is closed
+    const is_closed = heap.heap_is_Channel_closed(channel)
+    if (is_closed) {
+      error('panic: send on closed channel')
+      return
+    }
 
     // check if channel is full
     const is_full = heap.heap_is_Channel_full(channel)
@@ -697,14 +721,29 @@ const microcode = {
   CHAN_READ: (instr: any) => {
     const channel = heap.heap_get_Environment_value(E, instr.pos)
 
+    // check is channel, if not throw error
+    const is_channel = heap.is_Channel(channel);
+    if (!is_channel) {
+      error('invalid operation: cannot read from non-channel')
+      return
+    }
+
     // check if channel is empty
     const is_empty = heap.heap_is_Channel_empty(channel)
 
+    // check if channel is closed
+    const is_closed = heap.heap_is_Channel_closed(channel)
+
     // block thread if empty
     if (is_empty) {
-      PC--
-      block_read_thread(channel, curr_thread)
-      BLOCKING = true
+      if (is_closed) {
+        push(OS, undefined)
+      } else {
+        PC--
+        block_read_thread(channel, curr_thread)
+        BLOCKING = true
+      }
+
       return
     }
 
@@ -716,6 +755,29 @@ const microcode = {
 
     // unblock any random thread waiting to write to channel
     unblock_write_thread(channel)
+  },
+  CHAN_CLOSE: (instr: any) => {
+    const channel = heap.heap_get_Environment_value(E, instr.pos)
+
+    // check is channel, if not throw error
+    const is_channel = heap.is_Channel(channel);
+    if (!is_channel) {
+      error('invalid operation: cannot close non-channel')
+      return
+    }
+
+    // check if channel is closed
+    const is_closed = heap.heap_is_Channel_closed(channel)
+    if (is_closed) {
+      error('panic: close of closed channel')
+      return
+    }
+
+    // close channel
+    heap.heap_Channel_close(channel)
+
+    // unblock all threads waiting to write to it
+    unblock_all_write_threads(channel)
   },
   NEW_WG: (instr: any) => {
     const addr = heap.heap_allocate_Number(0)

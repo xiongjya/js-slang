@@ -117,9 +117,10 @@ func g(x, val) {
   Println("g wrote");
 }
 
-for var i = 0; i < 5; i = i + 1 {
+for var i = 0; i < 1; i = i + 1 {
   go f(x, i);
   go g(x, i * 100);
+  close(x);
   y := <- x;
   Println(y);
 }

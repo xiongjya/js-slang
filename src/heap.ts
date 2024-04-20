@@ -256,7 +256,7 @@ export default class Heap {
 
   // channel:
   // [1 byte tag, 1 byte is_unbuffered,
-  //  3 bytes unused,
+  //  1 byte is_closed, 2 bytes unused,
   //  2 bytes #children, 1 byte mutex]
   // Note: #children is 0
   // Additional 4 slots: channel information, channel size, channel write pointer, channel read pointer
@@ -281,6 +281,7 @@ export default class Heap {
 
     // information about the channel
     this.heap_set_byte_at_offset(address, 1, is_buffered)
+    this.heap_set_byte_at_offset(address, 2, 0)
     this.heap_set(address + 1, size)
     this.heap_set_2_bytes_at_offset(address, size_offset, chan_size)
 
@@ -295,6 +296,10 @@ export default class Heap {
     }
 
     return address
+  }
+
+  heap_is_Channel_closed(address: any) {
+    return this.heap_get_byte_at_offset(address, 2) === 1
   }
 
   heap_is_Channel_empty(address: any) {
@@ -338,6 +343,10 @@ export default class Heap {
     const channel_size = this.heap_get(address + 1)
     write_ptr = (write_ptr + 1) % channel_size
     this.heap_set(address + 2, write_ptr)
+  }
+
+  heap_Channel_close(address: any) {
+    this.heap_set_byte_at_offset(address, 2, 1)
   }
 
   heap_Channel_print(address: any) {
