@@ -688,8 +688,13 @@ const microcode = {
   BREAK: (instr: any) => {
     // continue popping till while instruction
     while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
-      if (instrs[PC].tag === 'RESET') {
+      const next_instr = instrs[PC]
+      if (next_instr.tag === 'RESET') {
         error('Break statement outside of while loop')
+      }
+
+      if (next_instr.tag === 'EXIT_SCOPE' || next_instr.tag === 'ENTER_SCOPE') {
+        microcode[next_instr.tag](next_instr)
       }
       PC++
     }
@@ -699,6 +704,11 @@ const microcode = {
   },
   CONTINUE: (instr: any) => {
     while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
+      const next_instr = instrs[PC]
+      if (next_instr.tag === 'EXIT_SCOPE' || next_instr.tag === 'ENTER_SCOPE') {
+        microcode[next_instr.tag](next_instr)
+      }
+
       PC++
     }
     if (PC >= instrs.length) {
