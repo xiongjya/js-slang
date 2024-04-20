@@ -216,10 +216,10 @@ function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
   } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
-    const is_const = comp.type === 'ConstDeclaration' ? 1 : 0;
+    const is_const = comp.type === 'ConstDeclaration' ? 1 : 0
     return comp.ids.map((x: any) => ({ name: x.name, is_const }))
   } else if (comp.type === 'FunctionDeclaration') {
-    return [({ name: comp.id.name, is_const: 1 })]
+    return [{ name: comp.id.name, is_const: 1 }]
   }
   return []
 }
@@ -377,7 +377,7 @@ const compile_comp = {
     const goto_instruction: any = { tag: 'GOTO' }
     instrs[wc++] = goto_instruction
     // extend compile-time environment
-    const parameters = comp.prms.map((x: any) => ({ name: x, is_const: 0 }));
+    const parameters = comp.prms.map((x: any) => ({ name: x, is_const: 0 }))
     compile(comp.body, compile_time_environment_extend(parameters, ce))
     instrs[wc++] = { tag: 'LDC', val: undefined }
     instrs[wc++] = { tag: 'RESET' }
