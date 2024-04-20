@@ -656,6 +656,12 @@ const microcode = {
   NEW_CHAN: (instr: any) => {
     const len_addr = OS.pop()
     const allocated_len = heap.address_to_JS_value(len_addr)
+
+    if (allocated_len > 6) {
+      error('sorry, the maximum size of a channel allowed currently is 6')
+      return
+    }
+
     const frame_address = heap.heap_allocate_Channel(allocated_len, instr.is_unbuffered)
     push(OS, frame_address)
   },

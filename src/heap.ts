@@ -280,6 +280,7 @@ export default class Heap {
     // information about the channel
     this.heap_set_byte_at_offset(address, 1, is_buffered)
     this.heap_set(address + 1, size)
+    this.heap_set_byte_at_offset(address, size_offset, chan_size)
 
     // write pointer
     this.heap_set(address + 2, 0)
