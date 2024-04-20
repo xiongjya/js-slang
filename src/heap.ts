@@ -260,6 +260,8 @@ export default class Heap {
   //  2 bytes #children, 1 byte mutex]
   // Note: #children is 0
   // Additional 4 slots: channel information, channel size, channel write pointer, channel read pointer
+  static empty_channel_slot = -3
+
   is_Channel(address: any) {
     return this.heap_get_tag(address) === Heap.Channel_tag
   }
@@ -289,7 +291,7 @@ export default class Heap {
 
     // empty the slots
     for (let i = 0; i < size; i++) {
-      this.heap_set(address + 4 + i, 0)
+      this.heap_set(address + 4 + i, Heap.empty_channel_slot)
     }
 
     return address
@@ -300,7 +302,7 @@ export default class Heap {
     const read_ptr = this.heap_get(address + 3)
 
     // check if space is occupied
-    return this.heap_get(address + 4 + read_ptr) === 0
+    return this.heap_get(address + 4 + read_ptr) === Heap.empty_channel_slot
   }
 
   heap_is_Channel_full(address: any) {
@@ -308,7 +310,7 @@ export default class Heap {
     const write_ptr = this.heap_get(address + 2)
 
     // check if space is occupied
-    return this.heap_get(address + 4 + write_ptr) !== 0
+    return this.heap_get(address + 4 + write_ptr) !== Heap.empty_channel_slot
   }
 
   heap_Channel_read(address: any) {
@@ -317,7 +319,7 @@ export default class Heap {
     const item = this.heap_get(address + 4 + read_ptr)
 
     // clear what read pointer points to
-    this.heap_set(address + 4 + read_ptr, 0)
+    this.heap_set(address + 4 + read_ptr, Heap.empty_channel_slot)
 
     // increment read pointer
     const channel_size = this.heap_get(address + 1)
@@ -344,11 +346,11 @@ export default class Heap {
     for (let i = 0; i < channel_size; i++) {
       const addr = this.heap_get(address + 4 + i)
 
-      if (addr !== 0) {
+      if (addr !== Heap.empty_channel_slot) {
         const item = this.address_to_JS_value(addr)
         console.log(item)
       } else {
-        console.log(0)
+        console.log(Heap.empty_channel_slot)
       }
     }
   }

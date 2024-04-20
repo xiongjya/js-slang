@@ -766,7 +766,7 @@ ConstantStatement
     }
 
 VariableStatement
-  = VarToken __ declarations:DeclarationSpecification EOS {
+  = VarToken __ declarations:DeclarationTypeSpecification EOS {
       return {
         type: "VariableDeclaration",
         kind: "var",
@@ -820,7 +820,6 @@ DeclarationSpecification
         vartype: null
       };
     }
-    / DeclarationTypeSpecification
 
 ShortVariableStatement
   = ids:IdentifierList __ ":=" __ init:(ExpressionList) EOS {
