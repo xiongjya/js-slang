@@ -11,14 +11,100 @@ function test_program(program: string) {
   return goRunner(parsed, context)
 }
 
-test('Simple test', async () => {
-  const program: string = `
-    x := 3;
+test('Declarations - constant, variable, function', async () => {
+  var program: string = `
+    const x = 3;
     x;
-    `
-  const result: Result = await test_program(program)
+  `
+  var result: Result = await test_program(program)
   expect(result.status).toBe('finished')
   expect((result as any).value).toBe(3)
+  program = `
+    y := 'hello';
+    y;
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe('hello')
+  program = `
+    var y = 'world';
+    y;
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe('world')
+  program = `
+    func f() {
+      return 1;
+    }
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe('<closure>')
+})
+
+test('Assignments - legal variable and illegal constant assignments', async () => {
+  var program: string = `
+    x := 3;
+    x = 2;
+    x;
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(2)
+  program = `
+    const y = 'blue';
+    y = 'berry';
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('error')
+})
+
+test('Function calls & blocks', async () => {
+  var program: string = `
+    const x = 3;
+    func foo(x) {
+      x = 2 + 3;
+      return x;
+    }
+    foo(x);
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(5)
+})
+
+test('For loops with break and continue', async () => {
+  var program: string = `
+    var x = 1;
+    const y = 10;
+    for var i = 0; i < 10; i = i + 1 {
+      const y = 5;
+      x = x * 2;
+
+      if (x < 16) {
+        continue;
+      } else if (i > 8) {
+        break;
+      }
+
+      x = x + y;
+    }
+    x;
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(1654)
+})
+
+test('Conditional expressions', async () => {
+  var program: string = `
+    var x = true ? 2 : 1;
+    x;
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(2)
 })
 
 test('Waitgroup', async () => {
