@@ -1,4 +1,4 @@
-import Heap from '../heap'
+import Heap, { address } from '../heap'
 import { Scheduler, ThreadId } from '../scheduler'
 import { Context, Finished, Result } from '../types'
 import WaitGroup from '../waitgroup'
@@ -10,10 +10,10 @@ type Thread = [
   any[] // RTS
 ]
 
-const heap = new Heap()
+const heap = new Heap(get_all_roots)
 let scheduler = new Scheduler()
 const threads: Map<ThreadId, Thread> = new Map()
-const waitgroups: Map<string, WaitGroup> = new Map()
+const waitgroups: Map<address, WaitGroup> = new Map()
 let curr_thread: ThreadId = -1
 
 // blocked threads due to channel
@@ -21,6 +21,16 @@ let curr_thread: ThreadId = -1
 const channel_read_block_threads: Map<any, ThreadId[]> = new Map()
 // waiting to write
 const channel_write_block_threads: Map<any, ThreadId[]> = new Map()
+
+function get_all_roots(): number[] {
+  const all_roots = []
+  for (const [tid, state] of threads.entries()) {
+    if (tid === curr_thread) continue
+    all_roots.push(...state[0], state[2], ...state[3])
+  }
+  all_roots.push(...OS, E, ...RTS)
+  return all_roots
+}
 
 function unblock_read_thread(address: any) {
   const blocked_threads: ThreadId[] | undefined = channel_read_block_threads.get(address)
@@ -91,8 +101,6 @@ const error = (...x: any) => {
   throw new Error(x)
 }
 
-const get_time = () => Date.now()
-
 const wrap_in_block = (program: any) => ({
   type: 'BlockStatement',
   body: [program]
@@ -110,14 +118,40 @@ const wrap_in_block = (program: any) => ({
 // of a given symbol x
 const compile_time_environment_position = (env: any, x: any) => {
   let frame_index = env.length
-  while (value_index(env[--frame_index], x) === -1) {}
+  try {
+    while (value_index(env[--frame_index], x) === -1) {}
+  } catch (e) {
+    error(`name ${x} is not declared`)
+    return
+  }
   return [frame_index, value_index(env[frame_index], x)]
 }
 
 const value_index = (frame: any, x: any) => {
   for (let i = 0; i < frame.length; i++) {
-    if (frame[i] === x) return i
+    if (frame[i].name === x) return i
   }
+  return -1
+}
+
+const is_name_constant = (env: any, x: any) => {
+  let frame_index = env.length
+  try {
+    while (is_name_constant_helper(env[--frame_index], x) === -1) {}
+  } catch (e) {
+    error(`name ${x} is not declared`)
+    return
+  }
+  return is_name_constant_helper(env[frame_index], x)
+}
+
+const is_name_constant_helper = (frame: any, x: any) => {
+  for (let i = 0; i < frame.length; i++) {
+    if (frame[i].name === x) {
+      return frame[i].is_const
+    }
+  }
+
   return -1
 }
 
@@ -131,39 +165,21 @@ const builtin_object = {
     console.log(heap.address_to_JS_value(address))
     return address
   },
-  get_time: () => heap.JS_value_to_address(get_time()),
   error: () => error(heap.address_to_JS_value(OS.pop())),
   is_number: () => (heap.is_Number(OS.pop()) ? heap.True : heap.False),
   is_boolean: () => (heap.is_Boolean(OS.pop()) ? heap.True : heap.False),
   is_undefined: () => (heap.is_Undefined(OS.pop()) ? heap.True : heap.False),
   is_string: () => (heap.is_String(OS.pop()) ? heap.True : heap.False), // ADDED CHANGE
   is_function: () => heap.is_Closure(OS.pop()),
-  math_sqrt: () => heap.JS_value_to_address(Math.sqrt(heap.address_to_JS_value(OS.pop()))),
-  head: () => heap.heap_get_child(OS.pop(), 0),
-  tail: () => heap.heap_get_child(OS.pop(), 1),
-  is_null: () => (heap.is_Null(OS.pop()) ? heap.True : heap.False),
-  set_head: () => {
-    const val = OS.pop()
-    const p = OS.pop()
-    heap.heap_set_child(p, 0, val)
-  },
-  set_tail: () => {
-    const val = OS.pop()
-    const p = OS.pop()
-    heap.heap_set_child(p, 1, val)
-  }
+  math_sqrt: () => heap.JS_value_to_address(Math.sqrt(heap.address_to_JS_value(OS.pop())))
 }
 
-const primitive_object = {}
+const builtins = {}
 const builtin_array: any[] = []
 {
   let i = 0
   for (const key in builtin_object) {
-    primitive_object[key] = {
-      tag: 'BUILTIN',
-      id: i,
-      arity: arity(builtin_object[key])
-    }
+    builtins[key] = { tag: 'BUILTIN', id: i, arity: arity(builtin_object[key]) }
     builtin_array[i++] = builtin_object[key]
   }
 }
@@ -180,16 +196,15 @@ const constants = {
   math_SQRT2: Math.SQRT2
 }
 
-for (const key in constants) primitive_object[key] = constants[key]
-
 const compile_time_environment_extend = (vs: any, e: any) => {
   //  make shallow copy of e
   return push([...e], vs)
 }
 
-// compile-time frames only need synbols (keys), no values
-const global_compile_frame = Object.keys(primitive_object)
-const global_compile_environment = [global_compile_frame]
+// compile-time frames only need symbols (keys), no values
+const builtins_symbols = Object.keys(builtins).map((x: any) => ({ name: x, is_const: 1 }))
+const global_constant_symbols = Object.keys(constants).map((x: any) => ({ name: x, is_const: 1 }))
+const global_compile_environment = [builtins_symbols, global_constant_symbols]
 
 /* ********
  * compiler
@@ -200,10 +215,13 @@ const global_compile_environment = [global_compile_frame]
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration'].includes(comp.type)) {
-    return comp.ids.map((x: any) => x.name)
+  } else if (
+    ['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)
+  ) {
+    const is_const = comp.type === 'VariableDeclaration' ? 0 : 1
+    return comp.ids.map((x: any) => ({ name: x.name, is_const }))
   } else if (comp.type === 'FunctionDeclaration') {
-    return [comp.id.name]
+    return [{ name: comp.id.name, is_const: 1 }]
   }
   return []
 }
@@ -322,10 +340,10 @@ const compile_comp = {
   },
   MemberExpression: (comp: any, ce: any) => {
     if (['Add', 'Wait', 'Done'].includes(comp.property.name)) {
-      if (!waitgroups.has(comp.object.name)) {
-        throw new Error(`Cannot call ${comp.property.name} on non-WaitGroup`)
+      instrs[wc++] = {
+        tag: `WG_${comp.property.name.toUpperCase()}`,
+        pos: compile_time_environment_position(ce, comp.object.name)
       }
-      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, wg: comp.object.name }
     }
   },
   GoRoutine: (comp: any, ce: any) => {
@@ -343,6 +361,13 @@ const compile_comp = {
     // store precomputed position info in ASSIGN instruction
     (comp: any, ce: any) => {
       compile(comp.right, ce)
+
+      const is_const = is_name_constant(ce, comp.left.name) === 1
+      if (is_const) {
+        error('unable to reassign value to constant/waitgroup')
+        return
+      }
+
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.left.name)
@@ -354,7 +379,8 @@ const compile_comp = {
     const goto_instruction: any = { tag: 'GOTO' }
     instrs[wc++] = goto_instruction
     // extend compile-time environment
-    compile(comp.body, compile_time_environment_extend(comp.prms, ce))
+    const parameters = comp.prms.map((x: any) => ({ name: x, is_const: 0 }))
+    compile(comp.body, compile_time_environment_extend(parameters, ce))
     instrs[wc++] = { tag: 'LDC', val: undefined }
     instrs[wc++] = { tag: 'RESET' }
     goto_instruction.addr = wc
@@ -375,16 +401,20 @@ const compile_comp = {
     instrs[wc++] = { tag: 'EXIT_SCOPE' }
   },
   VariableDeclaration: (comp: any, ce: any) => {
-    if (comp.vartype === 'WaitGroup') {
-      for (let { name } of comp.ids) waitgroups.set(name, new WaitGroup())
-      return
-    }
     if (!comp.inits) return
     for (let i = 0; i < comp.inits.length; i++) {
       compile(comp.inits[i], ce)
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.ids[i].name)
+      }
+    }
+  },
+  WaitGroupDeclaration: (comp: any, ce: any) => {
+    for (let { name } of comp.ids) {
+      instrs[wc++] = {
+        tag: 'NEW_WG',
+        pos: compile_time_environment_position(ce, name)
       }
     }
   },
@@ -453,6 +483,7 @@ const compile = (comp: any, ce: any) => {
     compile_comp[comp.type](comp, ce)
   } catch (e) {
     console.log(e)
+    throw e
   }
 }
 
@@ -505,23 +536,29 @@ const apply_builtin = (builtin_id: any) => {
 }
 
 // creating global runtime environment
-const primitive_values = Object.values(primitive_object)
-const frame_address = heap.heap_allocate_Frame(primitive_values.length)
-for (let i = 0; i < primitive_values.length; i++) {
-  const primitive_value: any = primitive_values[i]
-  if (typeof primitive_value === 'object' && primitive_value.hasOwnProperty('id')) {
-    heap.heap_set_child(frame_address, i, heap.heap_allocate_Builtin(primitive_value.id))
-  } else if (typeof primitive_value === 'undefined') {
-    heap.heap_set_child(frame_address, i, heap.Undefined)
-  } else {
-    heap.heap_set_child(frame_address, i, heap.heap_allocate_Number(primitive_value))
+function allocate_builtin_frame() {
+  const builtin_values = Object.values(builtins)
+  const frame_address = heap.heap_allocate_Frame(builtin_values.length)
+  for (let i = 0; i < builtin_values.length; i++) {
+    const builtin: any = builtin_values[i]
+    heap.heap_set_child(frame_address, i, heap.heap_allocate_Builtin(builtin.id))
   }
+  return frame_address
 }
 
-const global_environment = heap.heap_Environment_extend(
-  frame_address,
-  heap.heap_empty_Environment()
-)
+function allocate_constant_frame() {
+  const constant_values = Object.values(constants)
+  const frame_address = heap.heap_allocate_Frame(constant_values.length)
+  for (let i = 0; i < constant_values.length; i++) {
+    const constant_value = constant_values[i]
+    if (typeof constant_value === 'undefined') {
+      heap.heap_set_child(frame_address, i, heap.Undefined)
+    } else {
+      heap.heap_set_child(frame_address, i, heap.heap_allocate_Number(constant_value))
+    }
+  }
+  return frame_address
+}
 
 /* *******
  * machine
@@ -619,6 +656,12 @@ const microcode = {
   NEW_CHAN: (instr: any) => {
     const len_addr = OS.pop()
     const allocated_len = heap.address_to_JS_value(len_addr)
+
+    if (allocated_len > 6) {
+      error('sorry, the maximum size of a channel allowed currently is 6')
+      return
+    }
+
     const frame_address = heap.heap_allocate_Channel(allocated_len, instr.is_unbuffered)
     push(OS, frame_address)
   },
@@ -674,28 +717,45 @@ const microcode = {
     // unblock any random thread waiting to write to channel
     unblock_write_thread(channel)
   },
+  NEW_WG: (instr: any) => {
+    const addr = heap.heap_allocate_Number(0)
+    waitgroups.set(addr, new WaitGroup(addr))
+    heap.heap_set_Environment_value(E, instr.pos, addr)
+  },
   WG_ADD: (instr: any) => {
     let delta = OS.pop()
-    delta = delta === -1 ? delta : heap.address_to_JS_value(delta) // hacky haha
-    const wg = waitgroups.get(instr.wg)
+    delta = heap.address_to_JS_value(delta)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    const wg = waitgroups.get(addr)
     if (wg) {
-      for (let thread of wg.Add(delta)) {
+      for (let thread of wg.Add(delta, heap)) {
         scheduler.unblockThread(thread)
       }
     }
   },
   WG_WAIT: (instr: any) => {
-    BLOCKING = !waitgroups.get(instr.wg)?.Try_Wait(curr_thread)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    BLOCKING = !waitgroups.get(addr)?.Try_Wait(curr_thread, heap)
   },
   WG_DONE: (instr: any) => {
-    OS.push(-1)
-    microcode.WG_ADD(instr)
+    const addr = heap.heap_get_Environment_value(E, instr.pos)
+    const wg = waitgroups.get(addr)
+    if (wg) {
+      for (let thread of wg.Add(-1, heap)) {
+        scheduler.unblockThread(thread)
+      }
+    }
   },
   BREAK: (instr: any) => {
     // continue popping till while instruction
     while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
-      if (instrs[PC].tag === 'RESET') {
+      const next_instr = instrs[PC]
+      if (next_instr.tag === 'RESET') {
         error('Break statement outside of while loop')
+      }
+
+      if (next_instr.tag === 'EXIT_SCOPE' || next_instr.tag === 'ENTER_SCOPE') {
+        microcode[next_instr.tag](next_instr)
       }
       PC++
     }
@@ -705,6 +765,11 @@ const microcode = {
   },
   CONTINUE: (instr: any) => {
     while (PC < instrs.length && instrs[PC].tag !== 'WHILE') {
+      const next_instr = instrs[PC]
+      if (next_instr.tag === 'EXIT_SCOPE' || next_instr.tag === 'ENTER_SCOPE') {
+        microcode[next_instr.tag](next_instr)
+      }
+
       PC++
     }
     if (PC >= instrs.length) {
@@ -770,7 +835,13 @@ function run() {
   init_scheduler()
   OS = []
   PC = 0
-  E = global_environment
+  const builtins_frame = allocate_builtin_frame()
+  const constants_frame = allocate_constant_frame()
+  E = heap.heap_allocate_Environment(0)
+  E = heap.heap_Environment_extend(builtins_frame, E)
+  E = heap.heap_Environment_extend(constants_frame, E)
+  heap.set_heap_bottom() // bottom of heap is the addr that separates the builtin/constants from the other objects
+
   new_thread()
   next_thread()
   heap.reset_string_pool() // ADDED CHANGE

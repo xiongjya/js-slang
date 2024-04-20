@@ -8,7 +8,7 @@ const program = `
 var x = 1;
 const y = 10;
 
-func f(x int) { 
+func f(x) { 
   Println(100);
 }
 
@@ -70,10 +70,7 @@ for var i = 0; i < 5; i = i + 1 {
   y := <- x;
   Println(y);
 }
-`
-*/
 
-const program = `
 var x = 1;
 const y = 10;
 for var i = 0; i < 10; i = i + 1 {
@@ -84,9 +81,48 @@ for var i = 0; i < 10; i = i + 1 {
     continue;
   }
 
+  {
+    const z = 100;
+  }
+
   x = x + y;
 }
 x;
+
+var x = 1;
+const y = 10;
+var wg WaitGroup;
+
+func f(x, y, z) { 
+  x = 10;
+  Println(x);
+}
+
+f(1, 2, 3);
+x = 5;
+*/
+
+const program = `
+const a = 10;
+b := 20;
+var x = make(chan, 1);
+
+func f(x, val) {
+  x <- val;
+  Println("f wrote");
+}
+
+func g(x, val) {
+  x <- val;
+  Println("g wrote");
+}
+
+for var i = 0; i < 5; i = i + 1 {
+  go f(x, i);
+  go g(x, i * 100);
+  y := <- x;
+  Println(y);
+}
 `
 
 function main() {
