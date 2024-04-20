@@ -82,9 +82,9 @@ test('For loops with break and continue', async () => {
       const y = 5;
       x = x * 2;
 
-      if (x < 16) {
+      if x < 16 {
         continue;
-      } else if (i > 8) {
+      } else if i > 8 {
         break;
       }
 
