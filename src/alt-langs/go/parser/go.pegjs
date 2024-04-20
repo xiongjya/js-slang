@@ -459,7 +459,6 @@ EOF
 PrimaryExpression
   = Identifier
   / Literal
-  / "(" __ expression:Expression __ ")" { return expression; }
 
 MemberExpression
   = head:(
@@ -621,8 +620,8 @@ EqualityExpressionNoIn
     { return buildBinaryExpression(head, tail); }
 
 EqualityOperator
-  = "==="
-  / "!=="
+  = "=="
+  / "!="
 
 LogicalANDExpression
   = head:EqualityExpression
@@ -903,7 +902,7 @@ ExpressionStatement
     }
 
 IfStatement
-  = IfToken __ "(" __ test:Expression __ ")" __
+  = IfToken __ test:Expression __
     consequent:Statement __
     ElseToken __
     alternate:Statement
@@ -915,7 +914,7 @@ IfStatement
         alternate: alternate
       };
     }
-  / IfToken __ "(" __ test:Expression __ ")" __
+  / IfToken __ test:Expression __
     consequent:Statement {
       return {
         type: "IfStatement",
