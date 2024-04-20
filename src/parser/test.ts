@@ -119,10 +119,11 @@ func g(x, val) {
 
 for var i = 0; i < 5; i = i + 1 {
   go f(x, i);
-  go g(x, i * 100);
   y := <- x;
   Println(y);
 }
+
+close(x);
 `
 
 function main() {

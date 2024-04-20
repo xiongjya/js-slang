@@ -143,6 +143,9 @@ ReservedWord
 Keyword
   = BreakToken
   / CaseToken
+  / ChanToken
+  / CloseToken
+  / ConstToken
   / ContinueToken
   / DefaultToken
   / ElseToken
@@ -166,8 +169,7 @@ Types
   / WaitGroupToken
   
 FutureReservedWord
-  = ConstToken
-  / ImportToken
+  = ImportToken
 
 Literal
   = NilLiteral
@@ -395,6 +397,7 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 BreakToken      = "break"      !IdentifierPart
 CaseToken       = "case"       !IdentifierPart
 ChanToken       = "chan"       !IdentifierPart
+CloseToken      = "close"      !IdentifierPart
 ConstToken      = "const"      !IdentifierPart
 ContinueToken   = "continue"   !IdentifierPart
 DefaultToken    = "default"    !IdentifierPart
@@ -737,6 +740,7 @@ Statement
   / ShortVariableStatement
   / EmptyStatement
   / ChannelSendStatement
+  / ChannelCloseStatement
   / ExpressionStatement
   / IfStatement
   / IterationStatement
@@ -801,6 +805,14 @@ ChannelExpressionWithSize
         chantype: 'buffered',
         len: len
       };
+    }
+
+ChannelCloseStatement
+  = CloseToken "(" ids:Identifier ")" EOS {
+      return {
+        type: 'ChannelCloseStatement',
+        ids:  ids
+      }
     }
 
 DeclarationTypeSpecification
