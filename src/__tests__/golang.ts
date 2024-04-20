@@ -74,6 +74,22 @@ test('Function calls & blocks', async () => {
   expect((result as any).value).toBe(5)
 })
 
+test('Passing a function as a function argument', async () => {
+  var program: string = `
+    func foo(x, y) {
+      return x(y);
+    }
+    func bar(x) {
+      Println(x);
+      return 5;
+    }
+    foo(bar, 10);
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(5)
+})
+
 test('For loops with break and continue', async () => {
   var program: string = `
     var x = 1;
