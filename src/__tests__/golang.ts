@@ -54,10 +54,10 @@ test('Waitgroup', async () => {
 
 test('Channel', async () => {
   const program: string = `
-    var x chan int = make(chan int);
-    var y int;
+    var x = make(chan);
+    var y = 2;
 
-    func f(c chan int) {
+    func f(c) {
         c <- 10;
     }
 
@@ -70,4 +70,23 @@ test('Channel', async () => {
   let result = await test_program(program)
   expect(result.status).toBe('finished')
   expect((result as any).value).toBe(10)
+})
+
+test('Deadlock detection: WaitGroup', async () => {
+  const program: string = `
+    var wg WaitGroup;
+    wg.Add(1);
+    wg.Wait();
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('error')
+})
+
+test('Deadlock detection: Channel', async () => {
+  const program: string = `
+    var x = make(chan);
+    x <- 10;
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('error')
 })

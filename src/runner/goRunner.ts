@@ -732,7 +732,7 @@ const microcode = {
         scheduler.unblockThread(thread)
       }
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   WG_WAIT: (instr: any) => {
@@ -741,7 +741,7 @@ const microcode = {
     if (wg) {
       BLOCKING = !wg.Try_Wait(curr_thread, heap)
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   WG_DONE: (instr: any) => {
@@ -752,7 +752,7 @@ const microcode = {
         scheduler.unblockThread(thread)
       }
     } else {
-      error("Called waitgroup method on non-waitgroup")
+      error('Called waitgroup method on non-waitgroup')
     }
   },
   BREAK: (instr: any) => {
