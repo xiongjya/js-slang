@@ -107,7 +107,22 @@ test('Conditional expressions', async () => {
   expect((result as any).value).toBe(2)
 })
 
-test('Waitgroup', async () => {
+test('Execution of a single goroutine', async () => {
+  const program: string = `
+    x := 10;
+    func f() {
+        x = 2;
+    }
+    go f();
+    for var i = 0; i < 5; i = i + 1 {}
+    x;
+    `
+  let result = await test_program(program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(2)
+})
+
+test('Single waitgroup with 1 goroutine and 1 main thread', async () => {
   const no_wg_program: string = `
     x := 10;
     func f() {
@@ -136,6 +151,69 @@ test('Waitgroup', async () => {
   result = await test_program(wg_program)
   expect(result.status).toBe('finished')
   expect((result as any).value).toBe(2)
+})
+
+test('Single waitgroup with multiple goroutine and 1 main thread', async () => {
+  const wg_program: string = `
+    x := 0;
+    const num_threads = 4;
+    var wg WaitGroup;
+    wg.Add(num_threads);
+    func f(n) {
+      for var i = 0; i < n; i = i + 1 {}
+      x = n
+      wg.Done();
+    }
+    for var i = 1; i <= num_threads; i = i + 1 {
+      go f(i * 10);
+    }
+    wg.Wait();
+    x;
+    `
+  const result = await test_program(wg_program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(40)
+})
+
+test('Passing waitgroup into a function', async () => {
+  const wg_program: string = `
+    x := 0;
+    
+    func f(n, wg) {
+      for var i = 0; i < n; i = i + 1 {}
+      x = n
+      wg.Done();
+    }
+    func main() {
+      var wg WaitGroup;
+      const num_threads = 4;
+      wg.Add(num_threads);
+      for var i = 1; i <= num_threads; i = i + 1 {
+        go f(i * 10, wg);
+      }
+      wg.Wait();
+    }
+    main();
+    x;
+    `
+  const result = await test_program(wg_program)
+  expect(result.status).toBe('finished')
+  expect((result as any).value).toBe(40)
+})
+
+test('Illegal WaitGroup operations throw error', async () => {
+  var program: string = `
+    var wg WaitGroup;
+    wg.Add(-1);
+  `
+  var result: Result = await test_program(program)
+  expect(result.status).toBe('error')
+  program = `
+    x := 1;
+    x.Add(2);
+  `
+  result = await test_program(program)
+  expect(result.status).toBe('error')
 })
 
 test('Channel', async () => {
