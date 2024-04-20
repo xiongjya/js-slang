@@ -13,7 +13,7 @@ export default class WaitGroup {
   // Delta may be +ve or -ve
   // Returns all threads that need to be unblocked
   Add(delta: number, heap: Heap): ThreadId[] {
-    const count = heap.address_to_JS_value(this._addr) + delta;
+    const count = heap.address_to_JS_value(this._addr) + delta
     heap.heap_change_Number(this._addr, count)
     if (delta > 0 && this._waiters.length > 0) {
       throw new Error('WaitGroup misuse: Add called concurrently with Wait')

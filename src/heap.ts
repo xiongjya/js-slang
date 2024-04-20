@@ -538,7 +538,7 @@ export default class Heap {
     this.heap_set(number_address + 1, n)
     return number_address
   }
-  
+
   heap_change_Number(addr: address, new_number: number) {
     this.heap_set(addr + 1, new_number)
   }

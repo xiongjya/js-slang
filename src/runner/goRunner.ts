@@ -118,14 +118,40 @@ const wrap_in_block = (program: any) => ({
 // of a given symbol x
 const compile_time_environment_position = (env: any, x: any) => {
   let frame_index = env.length
-  while (value_index(env[--frame_index], x) === -1) {}
+  try {
+    while (value_index(env[--frame_index], x) === -1) {}
+  } catch (e) {
+    error(`name ${x} is not declared`)
+    return
+  }
   return [frame_index, value_index(env[frame_index], x)]
 }
 
 const value_index = (frame: any, x: any) => {
   for (let i = 0; i < frame.length; i++) {
-    if (frame[i] === x) return i
+    if (frame[i].name === x) return i
   }
+  return -1
+}
+
+const is_name_constant = (env: any, x: any) => {
+  let frame_index = env.length
+  try {
+    while (is_name_constant_helper(env[--frame_index], x) === -1) {}
+  } catch (e) {
+    error(`name ${x} is not declared`)
+    return
+  }
+  return is_name_constant_helper(env[frame_index], x)
+}
+
+const is_name_constant_helper = (frame: any, x: any) => {
+  for (let i = 0; i < frame.length; i++) {
+    if (frame[i].name === x) {
+      return frame[i].is_const
+    }
+  }
+
   return -1
 }
 
@@ -175,8 +201,10 @@ const compile_time_environment_extend = (vs: any, e: any) => {
   return push([...e], vs)
 }
 
-// compile-time frames only need synbols (keys), no values
-const global_compile_environment = [Object.keys(builtins), Object.keys(constants)]
+// compile-time frames only need symbols (keys), no values
+const builtins_symbols = Object.keys(builtins).map((x: any) => ({ name: x, is_const: 1 }))
+const global_constant_symbols = Object.keys(constants).map((x: any) => ({ name: x, is_const: 1 }))
+const global_compile_environment = [builtins_symbols, global_constant_symbols]
 
 /* ********
  * compiler
@@ -187,10 +215,13 @@ const global_compile_environment = [Object.keys(builtins), Object.keys(constants
 function scan(comp: any) {
   if (comp.type === 'seq') {
     return comp.stmts.reduce((acc: any, x: any) => acc.concat(scan(x)), [])
-  } else if (['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)) {
-    return comp.ids.map((x: any) => x.name)
+  } else if (
+    ['ConstDeclaration', 'VariableDeclaration', 'WaitGroupDeclaration'].includes(comp.type)
+  ) {
+    const is_const = comp.type === 'VariableDeclaration' ? 0 : 1
+    return comp.ids.map((x: any) => ({ name: x.name, is_const }))
   } else if (comp.type === 'FunctionDeclaration') {
-    return [comp.id.name]
+    return [{ name: comp.id.name, is_const: 1 }]
   }
   return []
 }
@@ -309,7 +340,10 @@ const compile_comp = {
   },
   MemberExpression: (comp: any, ce: any) => {
     if (['Add', 'Wait', 'Done'].includes(comp.property.name)) {
-      instrs[wc++] = { tag: `WG_${comp.property.name.toUpperCase()}`, pos: compile_time_environment_position(ce ,comp.object.name) }
+      instrs[wc++] = {
+        tag: `WG_${comp.property.name.toUpperCase()}`,
+        pos: compile_time_environment_position(ce, comp.object.name)
+      }
     }
   },
   GoRoutine: (comp: any, ce: any) => {
@@ -327,6 +361,13 @@ const compile_comp = {
     // store precomputed position info in ASSIGN instruction
     (comp: any, ce: any) => {
       compile(comp.right, ce)
+
+      const is_const = is_name_constant(ce, comp.left.name) === 1
+      if (is_const) {
+        error('unable to reassign value to constant/waitgroup')
+        return
+      }
+
       instrs[wc++] = {
         tag: 'ASSIGN',
         pos: compile_time_environment_position(ce, comp.left.name)
@@ -338,7 +379,8 @@ const compile_comp = {
     const goto_instruction: any = { tag: 'GOTO' }
     instrs[wc++] = goto_instruction
     // extend compile-time environment
-    compile(comp.body, compile_time_environment_extend(comp.prms, ce))
+    const parameters = comp.prms.map((x: any) => ({ name: x, is_const: 0 }))
+    compile(comp.body, compile_time_environment_extend(parameters, ce))
     instrs[wc++] = { tag: 'LDC', val: undefined }
     instrs[wc++] = { tag: 'RESET' }
     goto_instruction.addr = wc
